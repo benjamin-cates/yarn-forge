@@ -14,8 +14,8 @@ function App() {
         <input
           id="iterations-slider"
           type="range"
-          min={1}
-          max={100}
+          min={0}
+          max={200}
           value={iterations}
           onChange={e => setIterations(Number(e.target.value))}
           style={{ width: '200px', marginLeft: '10px' }}

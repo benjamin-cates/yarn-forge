@@ -1,17 +1,10 @@
 import React, { useMemo } from "react";
 import * as THREE from "three";
 import type { RowPiece } from "./parse";
+import { type SimStitch, build_smoothing_neighbors, taubin_smoothing, apply_repulsion, apply_dist_constraints } from "./phys";
 
 // --- Analytical Geometry Placement for Crochet Stitches ---
 // This version computes stitch positions directly using parametric geometry (no physics/springs)
-
-interface SimStitch {
-    id: number;
-    name: string;
-    below: { id: number; dist: number }[];
-    prev?: { id: number; dist: number };
-    position?: THREE.Vector3;
-}
 
 const STITCH_LENGTHS: { [key: string]: number } = {
     sc: 1,
@@ -22,11 +15,12 @@ const STITCH_LENGTHS: { [key: string]: number } = {
     ch: 1,
 };
 
-const continuous_rounds_crochet = (mr_size: number, rounds: RowPiece[][]): [SimStitch[], number[]] => {
+const discrete_rounds_crochet = (mr_size: number, rounds: RowPiece[][]): [SimStitch[], number[]] => {
     let stitches: SimStitch[] = [];
-    stitches.push({ id: 0, name: "mr", prev: { id: mr_size - 1, dist: 1 }, below: [] });
+    // Magic ring
+    stitches.push({ id: 0, name: "mr", prev: { id: mr_size - 1, dist: 0.5 }, below: [] });
     for (let i = 0; i < mr_size - 1; i++) {
-        stitches.push({ id: i + 1, name: "mr", prev: { id: i, dist: 1 }, below: [] });
+        stitches.push({ id: i + 1, name: "mr", prev: { id: i, dist: 0.5 }, below: [] });
     }
     let row = Array.from({ length: mr_size }).fill(0).map((_, i) => i);
     let row_indices = [0];
@@ -36,6 +30,11 @@ const continuous_rounds_crochet = (mr_size: number, rounds: RowPiece[][]): [SimS
         let next_row = [];
         for (let piece of round) {
             next_row.push(...add_crochet(piece, stitches, row, markings));
+        }
+        // Add join: connect last stitch to first stitch in this row
+        if (next_row.length > 1) {
+            let firstStitch = stitches[next_row[0]];
+            firstStitch.prev = { id: next_row[next_row.length - 1], dist: 1 };
         }
         row = next_row;
     }
@@ -139,8 +138,8 @@ function placeStitchesAnalytically(stitches: SimStitch[], row_ids: number[]) {
         let prevCount = i === 0 ? count : row_ids[i] - row_ids[i - 1];
         let nextZ = z;
         if (i > 0) {
-            let dz = (prevCount - count) / 6;
-            nextZ = z + Math.max(0, Math.min(1, dz));
+            let dz = (count - prevCount) / 6;
+            nextZ = z + Math.max(0, Math.min(1, 1 - dz));
         }
         let radius = count / (2 * Math.PI);
         for (let j = start; j < end; j++) {
@@ -156,42 +155,25 @@ function placeStitchesAnalytically(stitches: SimStitch[], row_ids: number[]) {
 }
 
 // --- Constraint-Based Relaxation (Position-Based Dynamics) ---
-function relaxStitchPositions(stitches: SimStitch[], iterations: number = 20) {
+function relaxStitchPositions(
+    stitches: SimStitch[],
+    iterations: number = 20,
+    spring_constant: number = 0.2,
+    repulsionStrength: number = 0.1,
+    smoothingStrength: number = 0.3,
+    repulsionRadius: number = 1.4
+) {
+    const smoothingNeighbors = build_smoothing_neighbors(stitches);
+
     // For each iteration, adjust positions to satisfy constraints (rest lengths)
     for (let iter = 0; iter < iterations; iter++) {
         // Copy positions to avoid bias
         const newPositions = stitches.map(s => s.position!.clone());
         // For each stitch, apply constraints to its neighbors
-        stitches.forEach((stitch, i) => {
-            // Below constraints
-            stitch.below.forEach(({ id: belowId, dist }) => {
-                let a = newPositions[i];
-                let b = newPositions[belowId];
-                if (!a || !b) return; // Defensive: skip if either is undefined
-                let delta = b.clone().sub(a);
-                let len = delta.length();
-                if (len === 0) return;
-                let diff = (len - dist) / 2;
-                let correction = delta.clone().normalize().multiplyScalar(diff);
-                // Move both points (unless mr, which is fixed)
-                if (stitch.name !== "mr") newPositions[i].add(correction);
-                if (stitches[belowId] && stitches[belowId].name !== "mr") newPositions[belowId].sub(correction);
-            });
-            // Prev constraint
-            if (stitch.prev) {
-                let prevId = stitch.prev.id;
-                let a = newPositions[i];
-                let b = newPositions[prevId];
-                if (!a || !b) return; // Defensive: skip if either is undefined
-                let delta = b.clone().sub(a);
-                let len = delta.length();
-                if (len === 0) return;
-                let diff = (len - stitch.prev.dist) / 2;
-                let correction = delta.clone().normalize().multiplyScalar(diff);
-                if (stitch.name !== "mr") newPositions[i].add(correction);
-                if (stitches[prevId] && stitches[prevId].name !== "mr") newPositions[prevId].sub(correction);
-            }
-        });
+        apply_dist_constraints(stitches, newPositions, spring_constant);
+        // --- Surface Smoothing Constraint (Taubin smoothing: λ pass then μ pass) ---
+        taubin_smoothing(newPositions, smoothingNeighbors, smoothingStrength);
+        apply_repulsion(stitches, newPositions, repulsionStrength, repulsionRadius);
         // Update positions
         stitches.forEach((stitch, i) => {
             stitch.position!.copy(newPositions[i]);
@@ -207,9 +189,41 @@ interface CrochetItem2Props {
 const CrochetItem2: React.FC<CrochetItem2Props> = ({ iterations = 30 }) => {
 
     const [stitches, row_ids] = useMemo(() => {
-        const [stitches, row_ids] = continuous_rounds_crochet(6, [
+        const [stitches, row_ids] = discrete_rounds_crochet(6, [
+            // Round 1: 6 increases (2 sc in each)
             [{ count: 6, pieces: [{ count: 2, in_name: "same st", name: "sc" }] }],
-            [{ count: 6, pieces: [{ count: 1, name: "sc" }, { count: 2, in_name: "same st", name: "sc" }] }],
+            // Round 2: (sc, inc) x 6
+            Array.from({ length: 6 }).map(() => ({
+                pieces: [
+                    { count: 1, name: "sc" },
+                    { count: 2, in_name: "same st", name: "sc" }
+                ],
+                count: 1
+            })),
+            // Round 3: (sc, sc, inc) x 6
+            Array.from({ length: 6 }).map(() => ({
+                pieces: [
+                    { count: 2, name: "sc" },
+                    { count: 2, in_name: "same st", name: "sc" }
+                ],
+                count: 1
+            })),
+            [{ count: 24, name: "sc" }],
+            // Round 4: (sc, sc, sc, inc) x 6
+            [{
+                pieces: [
+                    { count: 3, name: "sc" }, { count: 2, name: "sc", in_name: "same st" }
+                ],
+                count: 6
+            }],
+            // Round 5: (sc, sc, sc, sc, inc) x 6
+            Array.from({ length: 6 }).map(() => ({
+                pieces: [
+                    { count: 4, name: "sc" },
+                    { count: 2, in_name: "same st", name: "sc" }
+                ],
+                count: 1
+            })),
         ]);
         placeStitchesAnalytically(stitches, row_ids);
         relaxStitchPositions(stitches, iterations);
