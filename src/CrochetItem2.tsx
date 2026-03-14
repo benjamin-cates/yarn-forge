@@ -1,7 +1,9 @@
 import React, { useMemo } from "react";
 import * as THREE from "three";
 import type { RowPiece } from "./parse";
-import { type SimStitch, build_smoothing_neighbors, taubin_smoothing, apply_repulsion, apply_dist_constraints } from "./phys";
+import { type SimStitch, build_smoothing_neighbors, taubin_smoothing, apply_dist_constraints, apply_ortho_constraints, apply_inflation_modifier, type PhysConfig } from "./phys";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
 
 // --- Analytical Geometry Placement for Crochet Stitches ---
 // This version computes stitch positions directly using parametric geometry (no physics/springs)
@@ -54,7 +56,7 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
             stitch.prev = { id: stitches.length - 1, dist: 1 };
             for (let i = 0; i < piece.count; i++) {
                 for (let j = 0; j < piece.pieces.length; j++) {
-                    stitch.below.push({ id: prev_row.shift()!, dist: STITCH_LENGTHS[stitch.name] });
+                    stitch.below.push({ id: prev_row.shift()!, dist: STITCH_LENGTHS[stitch.name] + 0.2 });
                 }
             }
             stitches.push(stitch);
@@ -87,7 +89,7 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
             let stitch = { name: piece.name, id: stitches.length, below: [] } as SimStitch;
             stitch.prev = { id: stitches.length - 1, dist: 1 };
             for (let i = 0; i < piece.count; i++) {
-                stitch.below.push({ id: prev_row.shift()!, dist: STITCH_LENGTHS[piece.name] });
+                stitch.below.push({ id: prev_row.shift()!, dist: STITCH_LENGTHS[piece.name] + 0.2 });
             }
             stitches.push(stitch);
             next_row.push(stitches.length - 1);
@@ -138,7 +140,7 @@ function placeStitchesAnalytically(stitches: SimStitch[], row_ids: number[]) {
         let prevCount = i === 0 ? count : row_ids[i] - row_ids[i - 1];
         let nextZ = z;
         if (i > 0) {
-            let dz = (count - prevCount) / 6;
+            let dz = Math.abs(count - prevCount) / 6;
             nextZ = z + Math.max(0, Math.min(1, 1 - dz));
         }
         let radius = count / (2 * Math.PI);
@@ -146,8 +148,8 @@ function placeStitchesAnalytically(stitches: SimStitch[], row_ids: number[]) {
             let ang = (2 * Math.PI * (j - start)) / count;
             stitches[j].position = new THREE.Vector3(
                 radius * Math.sin(ang) + 0.1 * random(),
+                nextZ + 0.1 * random(),
                 radius * Math.cos(ang) + 0.1 * random(),
-                nextZ + 0.1 * random()
             );
         }
         z = nextZ;
@@ -157,82 +159,74 @@ function placeStitchesAnalytically(stitches: SimStitch[], row_ids: number[]) {
 // --- Constraint-Based Relaxation (Position-Based Dynamics) ---
 function relaxStitchPositions(
     stitches: SimStitch[],
-    iterations: number = 20,
-    spring_constant: number = 0.2,
-    repulsionStrength: number = 0.1,
-    smoothingStrength: number = 0.3,
-    repulsionRadius: number = 1.4
+    iterations: number,
+    spring_constant: number,
+    ortho_constant: number,
+    repulsionStrength: number,
+    lambda: number,
+    mu: number,
+    repulsionRadius: number,
+    repulsionGridSize: number,
 ) {
     const smoothingNeighbors = build_smoothing_neighbors(stitches);
+    const newPositions: THREE.Vector3[] = stitches.map((s) => s.position!.clone());
+    const scratchAfterLambda: THREE.Vector3[] = stitches.map(() => new THREE.Vector3());
 
     // For each iteration, adjust positions to satisfy constraints (rest lengths)
     for (let iter = 0; iter < iterations; iter++) {
-        // Copy positions to avoid bias
-        const newPositions = stitches.map(s => s.position!.clone());
+        // Copy positions to avoid bias (reusing buffers)
+        for (let i = 0; i < stitches.length; i++) {
+            newPositions[i].copy(stitches[i].position!);
+        }
         // For each stitch, apply constraints to its neighbors
         apply_dist_constraints(stitches, newPositions, spring_constant);
+        apply_ortho_constraints(stitches, newPositions, ortho_constant);
         // --- Surface Smoothing Constraint (Taubin smoothing: λ pass then μ pass) ---
-        taubin_smoothing(newPositions, smoothingNeighbors, smoothingStrength);
-        apply_repulsion(stitches, newPositions, repulsionStrength, repulsionRadius);
+        taubin_smoothing(newPositions, smoothingNeighbors, lambda, mu, scratchAfterLambda);
+        //apply_repulsion(stitches, newPositions, repulsionStrength, repulsionRadius);
+
         // Update positions
         stitches.forEach((stitch, i) => {
             stitch.position!.copy(newPositions[i]);
         });
+        if (iter % 3 == 0) apply_inflation_modifier(stitches, repulsionStrength, repulsionRadius, repulsionGridSize);
+    }
+
+    // Center model by subtracting the mean position.
+    let mean = stitches.map(s => s.position).filter(v => v).reduce((a, b) => a?.clone().add(b!))?.divideScalar(stitches.length);
+    for (const s of stitches) {
+        s.position!.sub(mean!);
     }
 }
 
 // --- Main Component ---
 interface CrochetItem2Props {
-    iterations?: number;
+    pattern: RowPiece[][],
+    phys: PhysConfig,
+    sphereColor?: string,
+    lineColor?: string,
 }
 
-const CrochetItem2: React.FC<CrochetItem2Props> = ({ iterations = 30 }) => {
+const CrochetItem2: React.FC<CrochetItem2Props> = ({
+    pattern,
+    phys,
+    sphereColor = "white",
+    lineColor = "yellow",
+}) => {
+    const { iterations, spring_constant, ortho_constant, repulsionStrength, lambda, mu } = phys;
 
-    const [stitches, row_ids] = useMemo(() => {
-        const [stitches, row_ids] = discrete_rounds_crochet(6, [
-            // Round 1: 6 increases (2 sc in each)
-            [{ count: 6, pieces: [{ count: 2, in_name: "same st", name: "sc" }] }],
-            // Round 2: (sc, inc) x 6
-            Array.from({ length: 6 }).map(() => ({
-                pieces: [
-                    { count: 1, name: "sc" },
-                    { count: 2, in_name: "same st", name: "sc" }
-                ],
-                count: 1
-            })),
-            // Round 3: (sc, sc, inc) x 6
-            Array.from({ length: 6 }).map(() => ({
-                pieces: [
-                    { count: 2, name: "sc" },
-                    { count: 2, in_name: "same st", name: "sc" }
-                ],
-                count: 1
-            })),
-            [{ count: 24, name: "sc" }],
-            // Round 4: (sc, sc, sc, inc) x 6
-            [{
-                pieces: [
-                    { count: 3, name: "sc" }, { count: 2, name: "sc", in_name: "same st" }
-                ],
-                count: 6
-            }],
-            // Round 5: (sc, sc, sc, sc, inc) x 6
-            Array.from({ length: 6 }).map(() => ({
-                pieces: [
-                    { count: 4, name: "sc" },
-                    { count: 2, in_name: "same st", name: "sc" }
-                ],
-                count: 1
-            })),
-        ]);
+    const [stitches] = useMemo(() => {
+        const [stitches, row_ids] = discrete_rounds_crochet(6, pattern);
         placeStitchesAnalytically(stitches, row_ids);
-        relaxStitchPositions(stitches, iterations);
-        return [stitches, row_ids];
-    }, [iterations]);
+        console.log(stitches);
+        relaxStitchPositions(stitches, iterations, spring_constant, ortho_constant, repulsionStrength, lambda, mu, 10, 32);
+        return [stitches] as const;
+    }, [iterations, spring_constant, ortho_constant, repulsionStrength, lambda, mu]);
 
 
     return (
-        <>
+        <Canvas>
+            <OrbitControls></OrbitControls>
             {/* Draw lines between connected stitches */}
             {stitches.map((stitch, id) => (
                 stitch.below.map(({ id: belowId }) => {
@@ -253,12 +247,12 @@ const CrochetItem2: React.FC<CrochetItem2Props> = ({ iterations = 30 }) => {
                                     ]}
                                 />
                             </bufferGeometry>
-                            <lineBasicMaterial color="yellow" linewidth={2} />
+                            <lineBasicMaterial color={lineColor} linewidth={2} />
                         </line>
                     );
                 })
             ))}
-            {/* Draw lines between consecutive stitches (prev) in cyan */}
+            {/* Draw lines between consecutive stitches (prev) */}
             {stitches.map((stitch, id) => {
                 if (!stitch.prev) return null;
                 const prevId = stitch.prev.id;
@@ -279,7 +273,7 @@ const CrochetItem2: React.FC<CrochetItem2Props> = ({ iterations = 30 }) => {
                                 ]}
                             />
                         </bufferGeometry>
-                        <lineBasicMaterial color="cyan" linewidth={2} />
+                        <lineBasicMaterial color={lineColor} linewidth={2} />
                     </line>
                 );
             })}
@@ -287,10 +281,10 @@ const CrochetItem2: React.FC<CrochetItem2Props> = ({ iterations = 30 }) => {
             {stitches.map((stitch, id) => (
                 <mesh key={id} position={stitch.position!}>
                     <sphereGeometry args={[0.1]} />
-                    <meshStandardMaterial color="white" />
+                    <meshBasicMaterial color={sphereColor} />
                 </mesh>
             ))}
-        </>
+        </Canvas>
     );
 };
 

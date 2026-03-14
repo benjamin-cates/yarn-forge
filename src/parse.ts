@@ -27,10 +27,10 @@ interface RowPiece {
 function make_line_parser() {
     return P.createLanguage<{ PreMultiply: number, PostMultiply: number, Stitch: RowPiece, Suffixes: RowPiece, List: RowPiece, Any: RowPiece, ItemList: RowPiece[] }>({
         PreMultiply: function () {
-            return P.digits.skip(P.oneOf("x*").trim(P.optWhitespace).fallback(null)).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1);
+            return P.digits.skip(P.oneOf("x*").fallback(null).trim(P.optWhitespace)).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1);
         },
         PostMultiply: function () {
-            return P.oneOf("x*").trim(P.optWhitespace).fallback(null).then(P.digits).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1);
+            return P.oneOf("x*").fallback(null).trim(P.optWhitespace).then(P.digits).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1);
         },
         Stitch: function (r) {
             let stitches_list = new Set(STITCH_LIST);
