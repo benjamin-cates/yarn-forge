@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import * as THREE from "three";
-import type { RowPiece } from "./parse";
+import { calculateInputStitches, type RowPiece } from "./parse";
 import { type SimStitch, build_smoothing_neighbors, taubin_smoothing, apply_dist_constraints, apply_ortho_constraints, type PhysConfig } from "./phys";
 import { apply_inflation_modifier, apply_repulsion, apply_stochastic_repulsion, apply_local_inflation } from "./inflation";
 import { Canvas } from "@react-three/fiber";
@@ -30,6 +30,13 @@ const discrete_rounds_crochet = (mr_size: number, rounds: RowPiece[][]): [SimSti
     let row_indices = [0];
     let markings: { [key: string]: number } = {};
     for (let round of rounds) {
+        if (round.length === 0) continue;
+        const required = calculateInputStitches(round);
+        if (required > row.length) {
+            console.warn(`Row requires ${required} stitches, but only ${row.length} are available. Stopping.`);
+            break;
+        }
+
         row_indices.push(stitches.length);
         let next_row = [];
         for (let piece of round) {
@@ -58,14 +65,17 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
             stitch.prev = { id: stitches.length - 1, dist: 1 };
             for (let i = 0; i < piece.count; i++) {
                 for (let j = 0; j < piece.pieces.length; j++) {
-                    stitch.below.push({ id: prev_row.shift()!, dist: STITCH_LENGTHS[stitch.name] + 0.2 });
+                    const belowId = prev_row.shift();
+                    if (belowId === undefined) return next_row;
+                    stitch.below.push({ id: belowId, dist: STITCH_LENGTHS[stitch.name] + 0.2 });
                 }
             }
             stitches.push(stitch);
             next_row.push(stitches.length - 1);
         } else if (piece.in_name?.includes("same")) {
             // Increase: multiple stitches, all reference the same below
-            let below = prev_row.shift()!;
+            let below = prev_row.shift();
+            if (below === undefined) return next_row;
             for (let i = 0; i < piece.count; i++) {
                 for (let j = 0; j < piece.pieces.length; j++) {
                     let sub = piece.pieces[j];
@@ -91,13 +101,16 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
             let stitch = { name: piece.name, id: stitches.length, below: [] } as SimStitch;
             stitch.prev = { id: stitches.length - 1, dist: 1 };
             for (let i = 0; i < piece.count; i++) {
-                stitch.below.push({ id: prev_row.shift()!, dist: STITCH_LENGTHS[piece.name] + 0.2 });
+                const belowId = prev_row.shift();
+                if (belowId === undefined) break;
+                stitch.below.push({ id: belowId, dist: STITCH_LENGTHS[piece.name] + 0.2 });
             }
             stitches.push(stitch);
             next_row.push(stitches.length - 1);
         } else if (piece.in_name?.includes("same")) {
             // Increase: multiple stitches, all reference the same below
-            let below = prev_row.shift()!;
+            let below = prev_row.shift();
+            if (below === undefined) return next_row;
             for (let i = 0; i < piece.count; i++) {
                 stitches.push({
                     id: stitches.length,
@@ -109,10 +122,12 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
             }
         } else {
             for (let i = 0; i < piece.count; i++) {
+                const belowId = prev_row.shift();
+                if (belowId === undefined) break;
                 stitches.push({
                     id: stitches.length,
                     name: piece.name,
-                    below: [{ id: prev_row.shift()!, dist: STITCH_LENGTHS[piece.name] }],
+                    below: [{ id: belowId, dist: STITCH_LENGTHS[piece.name] }],
                     prev: { id: stitches.length - 1, dist: 1 },
                 });
                 next_row.push(stitches.length - 1);

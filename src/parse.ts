@@ -1,6 +1,6 @@
 import * as P from "parsimmon";
 
-const STITCH_LIST = ["sc", "hdc", "dc", "htc", "tc"];
+export const STITCH_LIST = ["sc", "hdc", "dc", "htc", "tc"];
 
 
 // (sc, dc) together --> like a decrease
@@ -15,8 +15,16 @@ const STITCH_LIST = ["sc", "hdc", "dc", "htc", "tc"];
 
 
 
+export interface RowValidation {
+    inputStitches: number;
+    outputStitches: number;
+    isValid: boolean;
+    expectedInput?: number;
+}
 
-interface RowPiece {
+
+
+export interface RowPiece {
     count: number,
     name?: string,
     together?: boolean,
@@ -24,7 +32,7 @@ interface RowPiece {
     pieces?: RowPiece[],
     marking?: string,
 }
-function make_line_parser() {
+export function make_line_parser() {
     return P.createLanguage<{ PreMultiply: number, PostMultiply: number, Stitch: RowPiece, Suffixes: RowPiece, List: RowPiece, Any: RowPiece, ItemList: RowPiece[] }>({
         PreMultiply: function () {
             return P.digits.skip(P.oneOf("x*").fallback(null).trim(P.optWhitespace)).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1);
@@ -91,5 +99,108 @@ function make_line_parser() {
     })
 }
 
-export { make_line_parser, STITCH_LIST };
-export type { RowPiece };
+export function parseRows(text: string): { rows: RowPiece[][], errors: boolean[], validation: RowValidation[] } {
+    const parser = make_line_parser();
+    const lines = text.split("\n");
+    const errors: boolean[] = [];
+    const rows = lines
+        .map(line => line.trim())
+        .map((line, i) => {
+            if (line.length === 0) {
+                errors[i] = false;
+                return [];
+            }
+            try {
+                // Each line is a row: parse as ItemList
+                const res = parser.ItemList.tryParse(line);
+                errors[i] = false;
+                return res;
+            } catch (e) {
+                errors[i] = true;
+                return [];
+            }
+        });
+
+    const validation: RowValidation[] = rows.map((row, i) => {
+        const inputStitches = calculateInputStitches(row);
+        const outputStitches = calculateOutputStitches(row);
+        let isValid = true;
+        let expectedInput: number | undefined = undefined;
+
+        if (i > 0) {
+            // Find the last non-empty row to get expected input
+            for (let j = i - 1; j >= 0; j--) {
+                if (rows[j].length > 0 && !errors[j]) {
+                    expectedInput = calculateOutputStitches(rows[j]);
+                    break;
+                }
+            }
+
+            if (expectedInput !== undefined && row.length > 0 && !errors[i]) {
+                isValid = inputStitches === expectedInput;
+            }
+        }
+
+        return { inputStitches, outputStitches, isValid, expectedInput };
+    });
+
+    return { rows, errors, validation };
+}
+
+export function calculateInputStitches(pieces: RowPiece[]): number {
+    let inputStitches = 0;
+    for (const piece of pieces) {
+        if (piece.pieces) {
+            const subInput = calculateInputStitches(piece.pieces);
+            if (piece.together) {
+                // If the whole group is worked "together", it consumes all sub-stitches
+                // but usually "together" on a group means it's a decrease.
+                // However, based on the parser, it seems it multiplies the count.
+                inputStitches += subInput * piece.count;
+            } else if (piece.in_name) {
+                // If worked "in same st", the whole group consumes only 1 stitch (times count)
+                inputStitches += 1 * piece.count;
+            } else {
+                inputStitches += subInput * piece.count;
+            }
+        } else {
+            // Basic stitch
+            if (piece.together) {
+                // e.g., "sc3together" consumes 3 stitches
+                inputStitches += piece.count;
+            } else if (piece.in_name) {
+                // e.g., "3sc in same st" consumes 1 stitch
+                inputStitches += 1;
+            } else {
+                // e.g., "3sc" consumes 3 stitches
+                inputStitches += piece.count;
+            }
+        }
+    }
+    return inputStitches;
+}
+
+export function calculateOutputStitches(pieces: RowPiece[]): number {
+    let outputStitches = 0;
+    for (const piece of pieces) {
+        if (piece.pieces) {
+            const subOutput = calculateOutputStitches(piece.pieces);
+            if (piece.together) {
+                // If worked "together", it results in 1 stitch (times count)
+                outputStitches += 1 * piece.count;
+            } else {
+                outputStitches += subOutput * piece.count;
+            }
+        } else {
+            // Basic stitch
+            if (piece.together) {
+                // e.g., "sc3together" results in 1 stitch
+                outputStitches += 1;
+            } else {
+                // e.g., "3sc" results in 3 stitches, "3sc in same st" results in 3 stitches
+                outputStitches += piece.count;
+            }
+        }
+    }
+    return outputStitches;
+}

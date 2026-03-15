@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { make_line_parser, STITCH_LIST } from "../parse";
+import { make_line_parser, STITCH_LIST, calculateInputStitches, calculateOutputStitches } from "../parse";
 import type { Parser } from "parsimmon";
 
 const stitch = (name: string, count: number = 1) => ({ name, count });
@@ -42,6 +42,26 @@ test("suffixes", () => {
     parse_test(parser, "sc3 mark same st", { marking: "same st", count: 3, name: "sc" });
     console.log(parser.parse("3(3sc together, 2*dc, hdc, (hdc,dc)*2)"));
 
+});
+
+test("stitch counts", () => {
+    const { ItemList } = make_line_parser();
+    const calculate = (text: string) => {
+        const row = ItemList.tryParse(text);
+        return {
+            in: calculateInputStitches(row),
+            out: calculateOutputStitches(row)
+        };
+    };
+
+    expect(calculate("sc")).deep.equal({ in: 1, out: 1 });
+    expect(calculate("6sc")).deep.equal({ in: 6, out: 6 });
+    expect(calculate("2sc in same st")).deep.equal({ in: 1, out: 2 });
+    expect(calculate("6x(2 sc in same st)")).deep.equal({ in: 6, out: 12 });
+    expect(calculate("sc3together")).deep.equal({ in: 3, out: 1 });
+    expect(calculate("6x(sc, 2 sc together)")).deep.equal({ in: 18, out: 12 }); // sc consumes 1, 2sc tog consumes 2. Total 3 in, 2 out per repeat. 6 * 3 = 18, 6 * 2 = 12.
+    expect(calculate("(sc, dc) together")).deep.equal({ in: 2, out: 1 });
+    expect(calculate("3(sc, 2sc in same st)")).deep.equal({ in: 6, out: 9 });
 });
 
 test("together", () => {

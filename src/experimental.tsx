@@ -131,3 +131,44 @@ export const calculateStitchTensions = (stitches: SimStitch[]): TensionData[] =>
         return data;
     });
 };
+
+export const HeatmapIndex: React.FC = () => {
+    return (
+        <div style={{
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            background: 'rgba(0,0,0,0.7)',
+            padding: '12px',
+            borderRadius: '8px',
+            color: 'white',
+            fontSize: '12px',
+            pointerEvents: 'none',
+            zIndex: 10,
+            border: '1px solid #444',
+            width: '120px'
+        }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>Tension Index</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Stretched</span>
+                    <span style={{ color: '#ff0000' }}>1.5+</span>
+                </div>
+                <div style={{
+                    height: '10px',
+                    width: '100%',
+                    background: 'linear-gradient(to right, #0000ff, #ffffff, #ff0000)',
+                    borderRadius: '2px',
+                    margin: '4px 0'
+                }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Compressed</span>
+                    <span style={{ color: '#0000ff' }}>0.5-</span>
+                </div>
+                <div style={{ textAlign: 'center', fontSize: '10px', color: '#aaa', marginTop: '4px' }}>
+                    1.0 = Neutral
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from "react";
-import { make_line_parser, type RowPiece } from "./parse";
+import { calculateInputStitches, calculateOutputStitches, type RowPiece, parseRows } from "./parse";
 import { CrochetItem2 } from "./CrochetItem2";
 import type { PhysConfig } from "./phys";
+import { HeatmapIndex } from "./experimental";
+
 class ErrorBoundary extends React.Component<
     {
         children: React.ReactNode;
@@ -42,67 +44,11 @@ const defaultText = `6x(2 sc in same st)
 6x(sc, 2 sc together)
 6x(2 sc together)`;
 
-function parseRows(text: string): RowPiece[][] {
-    const parser = make_line_parser();
-    return text
-        .split("\n")
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-        .map(line => {
-            try {
-                // Each line is a row: parse as ItemList
-                return parser.ItemList.tryParse(line);
-            } catch (e) {
-                console.log(e);
-                // If parse fails, return an empty row
-                return [];
-            }
-        });
-}
-
-const HeatmapIndex: React.FC = () => {
-    return (
-        <div style={{
-            position: 'absolute',
-            bottom: '20px',
-            right: '20px',
-            background: 'rgba(0,0,0,0.7)',
-            padding: '12px',
-            borderRadius: '8px',
-            color: 'white',
-            fontSize: '12px',
-            pointerEvents: 'none',
-            zIndex: 10,
-            border: '1px solid #444',
-            width: '120px'
-        }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>Tension Index</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Stretched</span>
-                    <span style={{ color: '#ff0000' }}>1.5+</span>
-                </div>
-                <div style={{
-                    height: '10px',
-                    width: '100%',
-                    background: 'linear-gradient(to right, #0000ff, #ffffff, #ff0000)',
-                    borderRadius: '2px',
-                    margin: '4px 0'
-                }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Compressed</span>
-                    <span style={{ color: '#0000ff' }}>0.5-</span>
-                </div>
-                <div style={{ textAlign: 'center', fontSize: '10px', color: '#aaa', marginTop: '4px' }}>
-                    1.0 = Neutral
-                </div>
-            </div>
-        </div>
-    );
-}
 
 const Editor: React.FC = () => {
     const [text, setText] = useState(defaultText);
+    const editorRef = React.useRef<HTMLDivElement>(null);
+    const overlayRef = React.useRef<HTMLDivElement>(null);
 
     const [sidebarWidth, setSidebarWidth] = useState(420);
     const [isResizing, setIsResizing] = useState(false);
@@ -137,7 +83,35 @@ const Editor: React.FC = () => {
         };
     }, [resize]);
 
-    const rows = useMemo(() => parseRows(text), [text]);
+    const { rows, errors, validation } = useMemo(() => parseRows(text), [text]);
+
+    const finalRows = useMemo(() => {
+        const mrSize = 6;
+        let currentRowLength = mrSize;
+        const result: RowPiece[][] = [];
+        for (let i = 0; i < rows.length; i++) {
+            if (errors[i]) {
+                break;
+            }
+            if (rows[i].length === 0) {
+                result.push([]);
+                continue;
+            }
+            const required = calculateInputStitches(rows[i]);
+            if (required > currentRowLength) {
+                break;
+            }
+            result.push(rows[i]);
+            currentRowLength = calculateOutputStitches(rows[i]);
+        }
+        return result;
+    }, [rows, errors]);
+
+    React.useEffect(() => {
+        if (editorRef.current && editorRef.current.innerText !== text) {
+            editorRef.current.innerText = text;
+        }
+    }, []);
     const [iterations, setIterations] = useState(150);
     const [springConstant, setSpringConstant] = useState(0.5);
     const [orthoConstant, setOrthoConstant] = useState(0.6);
@@ -163,7 +137,7 @@ const Editor: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', width: '100vw', height: '100vh', flexDirection: "row", userSelect: isResizing ? 'none' : 'auto' }}>
-            <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', background: '#222', color: '#fff', overflow: 'hidden', boxShadow: '2px 0 8px #0004', zIndex: 2 }}>
+            <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', background: '#222', color: '#fff', boxShadow: '2px 0 8px #0004', zIndex: 2 }}>
                 <div style={{ padding: 16, overflowY: 'auto', flexShrink: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h2 style={{ margin: 0 }}>Simulation Controls</h2>
@@ -343,11 +317,192 @@ const Editor: React.FC = () => {
                 </div>
                 <div style={{ flex: 1, padding: 16, boxSizing: "border-box", background: "#222", color: "#fff", display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                     <h2 style={{ marginTop: 0 }}>Crochet Pattern Editor</h2>
-                    <textarea
-                        value={text}
-                        onChange={e => setText(e.target.value)}
-                        style={{ width: "100%", flex: 1, background: "#111", color: "#fff", fontFamily: "monospace", fontSize: 16, border: "1px solid #444", borderRadius: 4, resize: "none" }}
-                    />
+                    <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+                        <div
+                            ref={overlayRef}
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                pointerEvents: 'none',
+                                whiteSpace: 'pre-wrap',
+                                fontFamily: "monospace",
+                                fontSize: 16,
+                                lineHeight: '1.4em',
+                                padding: 8,
+                                color: '#fff',
+                                border: '1px solid transparent',
+                                zIndex: 100
+                            }}
+                        >
+                            {text.split('\n').map((line, i) => {
+                                const v = validation[i];
+                                const hasValidationError = v && !v.isValid && line.trim().length > 0;
+                                return (
+                                    <div key={i} style={{
+                                        color: errors[i] ? '#ff5555' : '#fff',
+                                        minHeight: '1.4em',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        position: 'relative',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        <span>{line || ' '}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                            {hasValidationError && (
+                                                <div style={{
+                                                    background: '#ffaa00',
+                                                    color: '#000',
+                                                    fontSize: '11px',
+                                                    padding: '0px 6px',
+                                                    lineHeight: "1.2em",
+                                                    borderRadius: '4px',
+                                                    fontWeight: 'bold',
+                                                    marginLeft: '10px',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                                                    position: "absolute",
+                                                    left: "calc(100% + 5px)",
+                                                    zIndex: 100,
+                                                }}>
+                                                    Mismatch! Expected {v.inputStitches} sts in prev layer.
+                                                </div>
+                                            )}
+                                            {v && line.trim().length > 0 && !errors[i] && (
+                                                <span style={{ fontSize: '12px', color: '#888', marginLeft: '10px', flexShrink: 0 }}>
+                                                    {v.outputStitches}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div
+                            ref={editorRef}
+                            contentEditable
+                            spellCheck="false"
+                            suppressContentEditableWarning
+                            onScroll={(e) => {
+                                if (overlayRef.current) {
+                                    overlayRef.current.scrollTop = e.currentTarget.scrollTop;
+                                }
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const selection = window.getSelection();
+                                    if (!selection || selection.rangeCount === 0) return;
+                                    const range = selection.getRangeAt(0);
+                                    range.deleteContents();
+
+                                    const textNode = document.createTextNode('\n');
+                                    range.insertNode(textNode);
+
+                                    const isAtEnd = (container: Node, offset: number) => {
+                                        if (container === e.currentTarget) return offset === container.childNodes.length;
+                                        let curr: Node | null = container;
+                                        while (curr && curr !== e.currentTarget) {
+                                            if (curr.nextSibling) return false;
+                                            curr = curr.parentNode;
+                                        }
+                                        return offset === (container.nodeType === Node.TEXT_NODE ? container.textContent?.length : container.childNodes.length);
+                                    };
+
+                                    if (isAtEnd(range.endContainer, range.endOffset)) {
+                                        const extraNode = document.createTextNode('\n');
+                                        range.insertNode(extraNode);
+                                    }
+
+                                    range.setStartAfter(textNode);
+                                    range.setEndAfter(textNode);
+                                    selection.removeAllRanges();
+                                    selection.addRange(range);
+
+                                    const val = (e.currentTarget as HTMLDivElement).innerText;
+                                    setText(val);
+                                }
+                            }}
+                            onInput={(e) => {
+                                const target = e.currentTarget;
+                                const val = target.innerText;
+
+                                // Save selection
+                                const selection = window.getSelection();
+                                if (!selection || selection.rangeCount === 0) {
+                                    setText(val);
+                                    return;
+                                }
+
+                                const range = selection.getRangeAt(0);
+                                const preSelectionRange = range.cloneRange();
+                                preSelectionRange.selectNodeContents(target);
+                                preSelectionRange.setEnd(range.startContainer, range.startOffset);
+                                const start = preSelectionRange.toString().length;
+
+                                setText(val);
+
+                                // Restore selection after React render
+                                requestAnimationFrame(() => {
+                                    if (!editorRef.current) return;
+                                    const newRange = document.createRange();
+                                    const selection = window.getSelection();
+                                    if (!selection) return;
+
+                                    let charCount = 0;
+                                    const nodeStack: Node[] = [editorRef.current];
+                                    let found = false;
+
+                                    while (nodeStack.length > 0) {
+                                        const node = nodeStack.pop()!;
+                                        if (node.nodeType === Node.TEXT_NODE) {
+                                            const nextCharCount = charCount + node.textContent!.length;
+                                            if (start <= nextCharCount) {
+                                                newRange.setStart(node, start - charCount);
+                                                newRange.collapse(true);
+                                                selection.removeAllRanges();
+                                                selection.addRange(newRange);
+                                                found = true;
+                                                break;
+                                            }
+                                            charCount = nextCharCount;
+                                        } else {
+                                            for (let i = node.childNodes.length - 1; i >= 0; i--) {
+                                                nodeStack.push(node.childNodes[i]);
+                                            }
+                                        }
+                                    }
+                                });
+                            }}
+                            onPaste={(e) => {
+                                e.preventDefault();
+                                const text = e.clipboardData.getData('text/plain');
+                                document.execCommand('insertText', false, text);
+                            }}
+                            style={{
+                                width: "100%",
+                                height: "100%",
+                                background: "#111",
+                                color: "transparent",
+                                caretColor: "#fff",
+                                fontFamily: "monospace",
+                                fontSize: 16,
+                                lineHeight: '1.4em',
+                                border: "1px solid #444",
+                                borderRadius: 4,
+                                padding: 8,
+                                boxSizing: 'border-box',
+                                outline: 'none',
+                                overflowY: 'auto',
+                                whiteSpace: 'pre-wrap',
+                                position: 'relative',
+                                zIndex: 2
+                            }}
+                        >
+                            {defaultText}
+                        </div>
+                    </div>
                 </div>
             </div>
             <div
@@ -362,9 +517,9 @@ const Editor: React.FC = () => {
                 onMouseEnter={(e) => { if (!isResizing) e.currentTarget.style.background = '#444'; }}
                 onMouseLeave={(e) => { if (!isResizing) e.currentTarget.style.background = 'transparent'; }}
             />
-            <div style={{ width: `calc(100vw - ${sidebarWidth}px)`, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", position: 'relative' }}>
+            <div style={{ width: `calc(100vw - ${sidebarWidth}px)`, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", position: 'relative', zIndex: 0 }}>
                 <ErrorBoundary set={() => (<div>Something went wrong</div>)}>
-                    <CrochetItem2 pattern={rows} phys={phys} sphereColor={sphereColor} lineColor={lineColor} experimental={experimental} />
+                    <CrochetItem2 pattern={finalRows} phys={phys} sphereColor={sphereColor} lineColor={lineColor} experimental={experimental} />
                 </ErrorBoundary>
                 {experimental && <HeatmapIndex />}
             </div>
