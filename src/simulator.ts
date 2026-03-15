@@ -20,7 +20,6 @@ const simulate = (stitches: SimStitch[]) => {
             for (let conn of stitches[j].connections) {
                 let dist_sq = stitches[j].pos.distanceToSquared(stitches[conn.id].pos);
                 let expected_dist_sq = conn.len * conn.len;
-                let dir = 
 
 
             }

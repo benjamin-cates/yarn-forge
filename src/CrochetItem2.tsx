@@ -1,9 +1,11 @@
 import React, { useMemo } from "react";
 import * as THREE from "three";
 import type { RowPiece } from "./parse";
-import { type SimStitch, build_smoothing_neighbors, taubin_smoothing, apply_dist_constraints, apply_ortho_constraints, apply_inflation_modifier, type PhysConfig } from "./phys";
+import { type SimStitch, build_smoothing_neighbors, taubin_smoothing, apply_dist_constraints, apply_ortho_constraints, type PhysConfig } from "./phys";
+import { apply_inflation_modifier, apply_repulsion, apply_stochastic_repulsion, apply_local_inflation } from "./inflation";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
+import { calculateStitchTensions, DensityGridVisualizer } from "./experimental";
 
 // --- Analytical Geometry Placement for Crochet Stitches ---
 // This version computes stitch positions directly using parametric geometry (no physics/springs)
@@ -20,9 +22,9 @@ const STITCH_LENGTHS: { [key: string]: number } = {
 const discrete_rounds_crochet = (mr_size: number, rounds: RowPiece[][]): [SimStitch[], number[]] => {
     let stitches: SimStitch[] = [];
     // Magic ring
-    stitches.push({ id: 0, name: "mr", prev: { id: mr_size - 1, dist: 0.5 }, below: [] });
+    stitches.push({ id: 0, name: "mr", prev: { id: mr_size - 1, dist: 0.7 }, below: [] });
     for (let i = 0; i < mr_size - 1; i++) {
-        stitches.push({ id: i + 1, name: "mr", prev: { id: i, dist: 0.5 }, below: [] });
+        stitches.push({ id: i + 1, name: "mr", prev: { id: i, dist: 0.7 }, below: [] });
     }
     let row = Array.from({ length: mr_size }).fill(0).map((_, i) => i);
     let row_indices = [0];
@@ -119,7 +121,7 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
     }
     return next_row;
 };
-function mulberry32(seed: number) {
+export function mulberry32(seed: number) {
     return function () {
         let t = seed += 0x6D2B79F5;
         t = Math.imul(t ^ t >>> 15, t | 1);
@@ -141,7 +143,7 @@ function placeStitchesAnalytically(stitches: SimStitch[], row_ids: number[]) {
         let nextZ = z;
         if (i > 0) {
             let dz = Math.abs(count - prevCount) / 6;
-            nextZ = z + Math.max(0, Math.min(1, 1 - dz));
+            nextZ = z + Math.max(0, Math.min(1, 1 - dz)) + 0.1;
         }
         let radius = count / (2 * Math.PI);
         for (let j = start; j < end; j++) {
@@ -159,18 +161,22 @@ function placeStitchesAnalytically(stitches: SimStitch[], row_ids: number[]) {
 // --- Constraint-Based Relaxation (Position-Based Dynamics) ---
 function relaxStitchPositions(
     stitches: SimStitch[],
-    iterations: number,
-    spring_constant: number,
-    ortho_constant: number,
-    repulsionStrength: number,
-    lambda: number,
-    mu: number,
-    repulsionRadius: number,
-    repulsionGridSize: number,
+    phys: PhysConfig,
 ) {
+    const {
+        iterations,
+        spring_constant,
+        ortho_constant,
+        repulsionStrength,
+        repulsionRadius,
+        repulsionMode,
+        lambda
+    } = phys;
+
     const smoothingNeighbors = build_smoothing_neighbors(stitches);
     const newPositions: THREE.Vector3[] = stitches.map((s) => s.position!.clone());
     const scratchAfterLambda: THREE.Vector3[] = stitches.map(() => new THREE.Vector3());
+    let grid: any = null;
 
     // For each iteration, adjust positions to satisfy constraints (rest lengths)
     for (let iter = 0; iter < iterations; iter++) {
@@ -178,18 +184,35 @@ function relaxStitchPositions(
         for (let i = 0; i < stitches.length; i++) {
             newPositions[i].copy(stitches[i].position!);
         }
-        // For each stitch, apply constraints to its neighbors
-        apply_dist_constraints(stitches, newPositions, spring_constant);
         apply_ortho_constraints(stitches, newPositions, ortho_constant);
         // --- Surface Smoothing Constraint (Taubin smoothing: λ pass then μ pass) ---
-        taubin_smoothing(newPositions, smoothingNeighbors, lambda, mu, scratchAfterLambda);
-        //apply_repulsion(stitches, newPositions, repulsionStrength, repulsionRadius);
-
+        if (iter % 3 == 0) taubin_smoothing(newPositions, smoothingNeighbors, lambda, scratchAfterLambda);
+        apply_dist_constraints(stitches, newPositions, spring_constant);
         // Update positions
         stitches.forEach((stitch, i) => {
             stitch.position!.copy(newPositions[i]);
         });
-        if (iter % 3 == 0) apply_inflation_modifier(stitches, repulsionStrength, repulsionRadius, repulsionGridSize);
+
+        if (iter % 3 === 0 && repulsionStrength > 0) {
+            if (repulsionMode === "grid_inflation") {
+                grid = apply_inflation_modifier(stitches, repulsionStrength, repulsionRadius, 32);
+            } else if (repulsionMode === "stochastic") {
+                apply_stochastic_repulsion(stitches, newPositions, repulsionStrength / 2, repulsionRadius, iter, 10);
+                stitches.forEach((stitch, i) => {
+                    stitch.position!.copy(newPositions[i]);
+                });
+            } else if (repulsionMode === "repulsion") {
+                apply_repulsion(stitches, newPositions, repulsionStrength, repulsionRadius);
+                stitches.forEach((stitch, i) => {
+                    stitch.position!.copy(newPositions[i]);
+                });
+            } else if (repulsionMode === "local_inflation") {
+                apply_local_inflation(stitches, newPositions, repulsionStrength);
+                stitches.forEach((stitch, i) => {
+                    stitch.position!.copy(newPositions[i]);
+                });
+            }
+        }
     }
 
     // Center model by subtracting the mean position.
@@ -197,6 +220,11 @@ function relaxStitchPositions(
     for (const s of stitches) {
         s.position!.sub(mean!);
     }
+    if (grid) {
+        grid.min.sub(mean!);
+        grid.max.sub(mean!);
+    }
+    return grid;
 }
 
 // --- Main Component ---
@@ -205,24 +233,49 @@ interface CrochetItem2Props {
     phys: PhysConfig,
     sphereColor?: string,
     lineColor?: string,
+    experimental?: boolean,
 }
+
+const getHeatmapColor = (tension: number): string => {
+    // tension around 1.0 is neutral
+    // tension < 1.0 is compressed (blue)
+    // tension > 1.0 is stretched (red)
+    // Range: 0.5 (blue) -> 1.0 (white) -> 1.5 (red)
+    const t = Math.max(0.5, Math.min(1.5, tension));
+    if (t < 1.0) {
+        // Blue to White
+        const factor = (t - 0.5) / 0.5; // 0 to 1
+        const r = Math.floor(255 * factor);
+        const g = Math.floor(255 * factor);
+        const b = 255;
+        return `rgb(${r},${g},${b})`;
+    } else {
+        // White to Red
+        const factor = (t - 1.0) / 0.5; // 0 to 1
+        const r = 255;
+        const g = Math.floor(255 * (1 - factor));
+        const b = Math.floor(255 * (1 - factor));
+        return `rgb(${r},${g},${b})`;
+    }
+};
 
 const CrochetItem2: React.FC<CrochetItem2Props> = ({
     pattern,
     phys,
     sphereColor = "white",
     lineColor = "yellow",
+    experimental = false,
 }) => {
-    const { iterations, spring_constant, ortho_constant, repulsionStrength, lambda, mu } = phys;
-
-    const [stitches] = useMemo(() => {
+    const [stitches, grid] = useMemo(() => {
         const [stitches, row_ids] = discrete_rounds_crochet(6, pattern);
         placeStitchesAnalytically(stitches, row_ids);
-        console.log(stitches);
-        relaxStitchPositions(stitches, iterations, spring_constant, ortho_constant, repulsionStrength, lambda, mu, 10, 32);
-        return [stitches] as const;
-    }, [iterations, spring_constant, ortho_constant, repulsionStrength, lambda, mu]);
+        let grid = relaxStitchPositions(stitches, phys);
+        return [stitches, grid] as const;
+    }, [pattern, phys]);
 
+    const tensions = useMemo(() => {
+        return calculateStitchTensions(stitches);
+    }, [stitches]);
 
     return (
         <Canvas>
@@ -233,6 +286,8 @@ const CrochetItem2: React.FC<CrochetItem2Props> = ({
                     const posA = stitch.position;
                     const posB = stitches[belowId]?.position;
                     if (!posA || !posB) return null;
+                    const tension = experimental ? tensions[id].belowTensions.find((t: any) => t.id === belowId)?.tension ?? 1.0 : 1.0;
+                    const color = experimental ? getHeatmapColor(tension) : lineColor;
                     return (
                         <line key={`line-${id}-${belowId}`}>
                             <bufferGeometry>
@@ -247,7 +302,7 @@ const CrochetItem2: React.FC<CrochetItem2Props> = ({
                                     ]}
                                 />
                             </bufferGeometry>
-                            <lineBasicMaterial color={lineColor} linewidth={2} />
+                            <lineBasicMaterial color={color} linewidth={2} />
                         </line>
                     );
                 })
@@ -259,6 +314,8 @@ const CrochetItem2: React.FC<CrochetItem2Props> = ({
                 const posA = stitch.position;
                 const posB = stitches[prevId]?.position;
                 if (!posA || !posB) return null;
+                const tension = experimental ? tensions[id].prevTension ?? 1.0 : 1.0;
+                const color = experimental ? getHeatmapColor(tension) : lineColor;
                 return (
                     <line key={`line-prev-${id}-${prevId}`}>
                         <bufferGeometry>
@@ -273,7 +330,7 @@ const CrochetItem2: React.FC<CrochetItem2Props> = ({
                                 ]}
                             />
                         </bufferGeometry>
-                        <lineBasicMaterial color={lineColor} linewidth={2} />
+                        <lineBasicMaterial color={color} linewidth={2} />
                     </line>
                 );
             })}
@@ -281,9 +338,10 @@ const CrochetItem2: React.FC<CrochetItem2Props> = ({
             {stitches.map((stitch, id) => (
                 <mesh key={id} position={stitch.position!}>
                     <sphereGeometry args={[0.1]} />
-                    <meshBasicMaterial color={sphereColor} />
+                    <meshBasicMaterial color={experimental ? getHeatmapColor(tensions[id].avgTension) : sphereColor} />
                 </mesh>
             ))}
+            {experimental && <DensityGridVisualizer grid={grid}></DensityGridVisualizer>}
         </Canvas>
     );
 };
