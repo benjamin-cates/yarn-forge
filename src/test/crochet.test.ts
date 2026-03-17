@@ -177,18 +177,3 @@ test("integrity: id field matches index", () => {
         expect(s.id).toBe(i);
     });
 });
-
-test("Just inc", () => {
-    const rounds = [[{ name: "sc", count: 2, in_name: "same" }]];
-
-    const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
-
-    console.log(stitches);
-});
-test("Just inc", () => {
-    const rounds = [[sc(8)]];
-
-    const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
-
-    console.log(stitches);
-});

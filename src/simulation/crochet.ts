@@ -92,7 +92,6 @@ export function placeStitchesAnalytically(stitches: SimStitch[], row_ids: number
             // If the row is reversed, we should place it from right to left (or vice versa)
             // to maintain continuity with the previous row's end.
             let reversed = is_reversed[i];
-            console.log("row " + i + " " + reversed, start, end);
             for (let j = start; j < end; j++) {
                 let step = (j - start);
                 let x = reversed ? (count - 1 - step) : step;
@@ -234,7 +233,6 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
         } else {
             for (let i = 0; i < piece.count; i++) {
                 const belowId = prev_row.shift();
-                console.log(belowId);
                 stitches.push({
                     id: stitches.length,
                     name: piece.name,
