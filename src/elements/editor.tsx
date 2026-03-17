@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { calculateInputStitches, calculateOutputStitches, type RowPiece, parseRows } from "./parse";
-import { CrochetItem2 } from "./CrochetItem2";
-import type { PhysConfig } from "./phys";
-import { HeatmapIndex } from "./experimental";
+import { calculateInputStitches, calculateOutputStitches, type RowPiece, parseRows } from "../parse";
+import { CrochetItem } from "./CrochetItem";
+import type { PhysConfig } from "../simulation/phys";
+import { HeatmapIndex } from "../simulation/experimental";
 
 class ErrorBoundary extends React.Component<
     {
@@ -54,7 +54,7 @@ const Editor: React.FC = () => {
     const [sidebarWidth, setSidebarWidth] = useState(420);
     const [isResizing, setIsResizing] = useState(false);
 
-    const startResizing = React.useCallback((mouseDownEvent: React.MouseEvent) => {
+    const startResizing = React.useCallback(() => {
         setIsResizing(true);
     }, []);
 
@@ -465,7 +465,6 @@ const Editor: React.FC = () => {
 
                                     let charCount = 0;
                                     const nodeStack: Node[] = [editorRef.current];
-                                    let found = false;
 
                                     while (nodeStack.length > 0) {
                                         const node = nodeStack.pop()!;
@@ -476,7 +475,6 @@ const Editor: React.FC = () => {
                                                 newRange.collapse(true);
                                                 selection.removeAllRanges();
                                                 selection.addRange(newRange);
-                                                found = true;
                                                 break;
                                             }
                                             charCount = nextCharCount;
@@ -532,7 +530,7 @@ const Editor: React.FC = () => {
             />
             <div style={{ width: `calc(100vw - ${sidebarWidth}px)`, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", position: 'relative', zIndex: 0 }}>
                 <ErrorBoundary set={() => (<div>Something went wrong</div>)}>
-                    <CrochetItem2
+                    <CrochetItem
                         pattern={finalRows}
                         phys={phys}
                         sphereColor={sphereColor}

@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
 import * as THREE from "three";
-import { type RowPiece } from "./parse";
-import { type SimStitch, build_smoothing_neighbors, taubin_smoothing, apply_dist_constraints, apply_ortho_constraints, type PhysConfig } from "./phys";
-import { apply_inflation_modifier, apply_repulsion, apply_stochastic_repulsion, apply_local_inflation } from "./inflation";
+import { type RowPiece } from "../parse";
+import { type SimStitch, build_smoothing_neighbors, taubin_smoothing, apply_dist_constraints, apply_ortho_constraints, type PhysConfig } from "../simulation/phys";
+import { apply_inflation_modifier, apply_repulsion, apply_stochastic_repulsion, apply_local_inflation } from "../simulation/inflation";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
-import { calculateStitchTensions, DensityGridVisualizer } from "./experimental";
+import { calculateStitchTensions, DensityGridVisualizer, getHeatmapColor } from "../simulation/experimental";
 
 // --- Analytical Geometry Placement for Crochet Stitches ---
 // This version computes stitch positions directly using parametric geometry (no physics/springs)
@@ -335,30 +335,6 @@ function relaxStitchPositions(
     return grid;
 }
 
-
-const getHeatmapColor = (tension: number): string => {
-    // tension around 1.0 is neutral
-    // tension < 1.0 is compressed (blue)
-    // tension > 1.0 is stretched (red)
-    // Range: 0.5 (blue) -> 1.0 (white) -> 1.5 (red)
-    const t = Math.max(0.5, Math.min(1.5, tension));
-    if (t < 1.0) {
-        // Blue to White
-        const factor = (t - 0.5) / 0.5; // 0 to 1
-        const r = Math.floor(255 * factor);
-        const g = Math.floor(255 * factor);
-        const b = 255;
-        return `rgb(${r},${g},${b})`;
-    } else {
-        // White to Red
-        const factor = (t - 1.0) / 0.5; // 0 to 1
-        const r = 255;
-        const g = Math.floor(255 * (1 - factor));
-        const b = Math.floor(255 * (1 - factor));
-        return `rgb(${r},${g},${b})`;
-    }
-};
-
 const getContrastColor = (color: string): { backgroundColor: string, textColor: string } => {
     const s = new Option().style;
     s.color = color;
@@ -398,7 +374,7 @@ interface CrochetItem2Props {
     autoTurn: boolean,
 }
 
-const CrochetItem2: React.FC<CrochetItem2Props> = ({
+export const CrochetItem: React.FC<CrochetItem2Props> = ({
     pattern,
     phys,
     sphereColor,
@@ -511,5 +487,3 @@ const CrochetItem2: React.FC<CrochetItem2Props> = ({
         </Canvas>
     );
 };
-
-export { CrochetItem2 };

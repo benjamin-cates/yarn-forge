@@ -132,6 +132,29 @@ export const calculateStitchTensions = (stitches: SimStitch[]): TensionData[] =>
     });
 };
 
+export const getHeatmapColor = (tension: number): string => {
+    // tension around 1.0 is neutral
+    // tension < 1.0 is compressed (blue)
+    // tension > 1.0 is stretched (red)
+    // Range: 0.5 (blue) -> 1.0 (white) -> 1.5 (red)
+    const t = Math.max(0.5, Math.min(1.5, tension));
+    if (t < 1.0) {
+        // Blue to White
+        const factor = (t - 0.5) / 0.5; // 0 to 1
+        const r = Math.floor(255 * factor);
+        const g = Math.floor(255 * factor);
+        const b = 255;
+        return `rgb(${r},${g},${b})`;
+    } else {
+        // White to Red
+        const factor = (t - 1.0) / 0.5; // 0 to 1
+        const r = 255;
+        const g = Math.floor(255 * (1 - factor));
+        const b = Math.floor(255 * (1 - factor));
+        return `rgb(${r},${g},${b})`;
+    }
+};
+
 export const HeatmapIndex: React.FC = () => {
     return (
         <div style={{
