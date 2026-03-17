@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { type RowPiece } from "../parse";
 import { relaxStitchPositions, type PhysConfig } from "../simulation/phys";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Html } from "@react-three/drei";
+import { OrbitControls, Html, Line } from "@react-three/drei";
 import { calculateStitchTensions, DensityGridVisualizer, getHeatmapColor } from "../simulation/experimental";
 import { crochet, placeStitchesAnalytically } from "../simulation/crochet";
 import { getLabelColors } from "../util";
@@ -40,7 +40,7 @@ export const CrochetItem: React.FC<CrochetItemProps> = ({
     }, [stitches]);
 
     return (
-        <Canvas>
+        <Canvas frameloop="demand">
             <OrbitControls></OrbitControls>
             {/* Draw lines between connected stitches */}
             {stitches.map((stitch, id) => (
@@ -51,21 +51,13 @@ export const CrochetItem: React.FC<CrochetItemProps> = ({
                     const tension = experimental ? tensions[id].belowTensions.find((t: any) => t.id === belowId)?.tension ?? 1.0 : 1.0;
                     const color = experimental ? getHeatmapColor(tension) : lineColor;
                     return (
-                        <line key={`line-${id}-${belowId}`}>
-                            <bufferGeometry>
-                                <bufferAttribute
-                                    attach="attributes-position"
-                                    args={[
-                                        new Float32Array([
-                                            posA.x, posA.y, posA.z,
-                                            posB.x, posB.y, posB.z
-                                        ]),
-                                        3
-                                    ]}
-                                />
-                            </bufferGeometry>
-                            <lineBasicMaterial color={color} linewidth={2} />
-                        </line>
+                        <Line
+                            key={`line-${id}-${belowId}`}
+                            points={[posA, posB]}
+                            color={color}
+                            lineWidth={2}
+                            frustumCulled={false}
+                        />
                     );
                 })
             ))}
@@ -79,21 +71,13 @@ export const CrochetItem: React.FC<CrochetItemProps> = ({
                 const tension = experimental ? tensions[id].prevTension ?? 1.0 : 1.0;
                 const color = experimental ? getHeatmapColor(tension) : lineColor;
                 return (
-                    <line key={`line-prev-${id}-${prevId}`}>
-                        <bufferGeometry>
-                            <bufferAttribute
-                                attach="attributes-position"
-                                args={[
-                                    new Float32Array([
-                                        posA.x, posA.y, posA.z,
-                                        posB.x, posB.y, posB.z
-                                    ]),
-                                    3
-                                ]}
-                            />
-                        </bufferGeometry>
-                        <lineBasicMaterial color={color} linewidth={2} />
-                    </line>
+                    <Line
+                        key={`line-prev-${id}-${prevId}`}
+                        points={[posA, posB]}
+                        color={color}
+                        lineWidth={2}
+                        frustumCulled={false}
+                    />
                 );
             })}
             {/* Draw spheres for stitches */}
