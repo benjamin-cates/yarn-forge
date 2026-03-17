@@ -213,7 +213,7 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
             stitch.prev = { id: stitches.length - 1, dist: 1 };
             for (let i = 0; i < piece.count; i++) {
                 const belowId = prev_row.shift();
-                if (belowId == undefined) break;
+                if (belowId == undefined || belowId == -1) break;
                 stitch.below.push({ id: belowId, dist: STITCH_LENGTHS[piece.name] + 0.2 });
             }
             stitches.push(stitch);
@@ -221,12 +221,11 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
             handleMarking(stitches.length - 1);
         } else if (piece.in_name) {
             let below = resolve_in_name(piece.in_name, prev_row, markings);
-            if (below == undefined) return next_row;
             for (let i = 0; i < piece.count; i++) {
                 stitches.push({
                     id: stitches.length,
                     name: piece.name,
-                    below: [{ id: below, dist: STITCH_LENGTHS[piece.name] }],
+                    below: (below == -1 || below == undefined) ? [] : [{ id: below, dist: STITCH_LENGTHS[piece.name] }],
                     prev: { id: stitches.length - 1, dist: 1 },
                 });
                 next_row.push(stitches.length - 1);
@@ -235,6 +234,7 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
         } else {
             for (let i = 0; i < piece.count; i++) {
                 const belowId = prev_row.shift();
+                console.log(belowId);
                 stitches.push({
                     id: stitches.length,
                     name: piece.name,

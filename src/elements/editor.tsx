@@ -87,8 +87,7 @@ const Editor: React.FC = () => {
     const { rows, errors, validation } = useMemo(() => parseRows(text), [text]);
 
     const finalRows = useMemo(() => {
-        const mrSize = 6;
-        let currentRowLength = mrSize;
+        let currentRowLength = 1000;
         const result: RowPiece[][] = [];
         for (let i = 0; i < rows.length; i++) {
             if (errors[i]) {
