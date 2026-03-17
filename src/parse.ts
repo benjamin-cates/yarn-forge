@@ -95,8 +95,8 @@ export function make_line_parser() {
         Suffixes: function () {
             return P.seq(
                 P.alt(P.string("together"), P.string("tog")).trim(P.optWhitespace).fallback(""),
-                P.string("in").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_]+/)).fallback(""),
-                P.string("mark").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_]+/)).fallback(""),
+                P.string("in").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_ ]+/)).fallback(""),
+                P.string("mark").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_ ]+/)).fallback(""),
             ).map(([tog, in_name, mark_name]) => {
                 let item = { count: 1 } as RowPiece;
                 if (tog === "together" || tog === "tog") {

@@ -34,14 +34,12 @@ test("basic stitches", () => {
 test("suffixes", () => {
     let parser = make_line_parser().Any;
     parse_test(parser, "sc3together", { together: true, count: 3, name: "sc" });
-    parse_test(parser, "3sc in same st", { in_name: "same st", count: 3, name: "sc" });
+    parse_test(parser, "3sc in same", { in_name: "same", count: 3, name: "sc" });
     parse_test(parser, "(3sc,dc) together", { together: true, count: 1, pieces: [stitch("sc", 3), stitch("dc")] });
     parse_test(parser, "(3sc,dc) * 3", { count: 3, pieces: [stitch("sc", 3), stitch("dc")] });
     parse_test(parser, "(3sc,dc) * 150 together", { together: true, count: 150, pieces: [stitch("sc", 3), stitch("dc")] });
     parse_test(parser, "sc3 mark red", { marking: "red", count: 3, name: "sc" });
     parse_test(parser, "sc3 mark same st", { marking: "same st", count: 3, name: "sc" });
-    console.log(parser.parse("3(3sc together, 2*dc, hdc, (hdc,dc)*2)"));
-
 });
 
 test("stitch counts", () => {
@@ -69,7 +67,7 @@ test("stitch counts", () => {
     expect(calculate("3sk")).deep.equal({ in: 3, out: 0 });
     expect(calculate("inc")).deep.equal({ in: 1, out: 2 });
     expect(calculate("dec")).deep.equal({ in: 2, out: 1 });
-    expect(calculate("join red")).deep.equal({ in: 1, out: 0 });
+    expect(calculate("join in red")).deep.equal({ in: 1, out: 0 });
     expect(calculate("turn")).deep.equal({ in: 1, out: 0 });
 });
 
@@ -80,10 +78,13 @@ test("marks and complex aliases", () => {
     expect(res[0].marking).equals("red");
     expect(res[res.length - 1].marking).equals("blue");
 
-    let res2 = ItemList.tryParse("ch#start, 5ch, join start");
+    let res2 = ItemList.tryParse("ch#start, 5ch, join in start");
     expect(res2[0].marking).equals("start");
     expect(res2[0].name).equals("ch");
-    expect(res2[6].name).equals("join");
+    expect(res2[1].name).equals("ch");
+    expect(res2[1].count).equals(5);
+    expect(res2[2].name).equals("join");
+    expect(res2[2].in_name).equals("start");
 });
 
 test("together", () => {

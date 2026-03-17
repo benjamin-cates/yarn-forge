@@ -39,7 +39,6 @@ export const crochet = (rounds: RowPiece[][], options: { autoJoin: boolean, auto
         const containsTurn = round.some(p => p.name === "turn");
         if (options.autoTurn || containsTurn) {
             row = next_row.slice().reverse();
-            console.log(row);
             current_reversed = !current_reversed;
         } else {
             row = next_row;
