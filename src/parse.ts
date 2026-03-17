@@ -1,17 +1,28 @@
 import * as P from "parsimmon";
 
-export const STITCH_LIST = ["sc", "hdc", "dc", "htc", "tc"];
+export const STITCH_LIST = ["sc", "hdc", "dc", "htc", "tc", "ch", "sk", "join", "turn"];
+
+export const ALIAS_MAP: Record<string, RowPiece[]> = {
+    "inc": [{ count: 2, name: "sc", in_name: "next" }],
+    "dec": [{ count: 2, name: "sc", together: true }],
+};
 
 
-// (sc, dc) together --> like a decrease
-// (sc, dc) in same st --> like an increase
-// Marks:     sc mark red, 
-// In: sc in red
+// Stitch list: sc, hdc, dc, htc, tc, ch, sk, join
+// Alias list: "inc" means (2sc in same st), "dec" means (sc2together)
 
-//Marks:
-// Making a mark with the mark command (eg. sc mark red)
-// Access a mark with it's name and offset (eg. sc in red+1)
-// Special marks: "hook" always points to current stitch
+// Special stitches:
+//      ch --> create a stitch, but do not consume a stitch from the input layer.
+//      sk --> Consume a stitch from the input layer but do not make a new stitch.
+
+// Marks: "sc#red" marks that stitch with the tag "red"
+// Special marks: "next" always points to the next stitch to be worked in. "xth from hook" means the stitch going back x positions.
+// In: sc in red --> Makes a stitch in that marker, continues after. Use "2sc in next" to make an increase
+// Together: 2sc together --> Means all stitches are combined into one. Use "sc2together" to make a simple decrease
+// Join: join red --> Immediately connects to that stitch, continues from the stitches after
+// Marks can also be referenced like "red+1" for the stitch after red
+// Example ring: ch#start, 15 ch, join start
+
 
 
 
@@ -33,46 +44,69 @@ export interface RowPiece {
     marking?: string,
 }
 export function make_line_parser() {
-    return P.createLanguage<{ PreMultiply: number, PostMultiply: number, Stitch: RowPiece, Suffixes: RowPiece, List: RowPiece, Any: RowPiece, ItemList: RowPiece[] }>({
+    return P.createLanguage<{
+        PreMultiply: number,
+        PostMultiply: number,
+        Stitch: RowPiece | RowPiece[],
+        Suffixes: RowPiece,
+        List: RowPiece,
+        Any: RowPiece | RowPiece[],
+        ItemList: RowPiece[]
+    }>({
         PreMultiply: function () {
-            return P.digits.skip(P.oneOf("x*").fallback(null).trim(P.optWhitespace)).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1);
+            return P.digits.skip(P.oneOf("x*").fallback(null).trim(P.optWhitespace)).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1).fallback(1);
         },
         PostMultiply: function () {
-            return P.oneOf("x*").fallback(null).trim(P.optWhitespace).then(P.digits).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1);
+            return P.oneOf("x*").fallback(null).trim(P.optWhitespace).then(P.digits).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1).fallback(1);
         },
         Stitch: function (r) {
             let stitches_list = new Set(STITCH_LIST);
+            let aliases = Object.keys(ALIAS_MAP);
             let stitch_names_parser = P.letters.chain(s => {
-                if (stitches_list.has(s)) return P.succeed(s);
-                return P.fail("");
+                if (stitches_list.has(s) || aliases.includes(s)) return P.succeed(s);
+                return P.fail("Not a stitch or alias");
             });
             return P.seq(
                 r.PreMultiply,
                 stitch_names_parser,
                 r.PostMultiply,
+                P.string("#").then(P.regexp(/[a-zA-Z0-9+_]+/)).fallback(""),
                 r.Suffixes,
-            ).map(([count1, name, count2, suffixes]) => {
-                if (count1 != 1 && count2 != 1) {
-                    return P.fail("Cannot provide list multiplier on both sides");
+            ).map(([count1, name, count2, hash_mark, suffixes]) => {
+                const count = count1 * count2;
+                if (ALIAS_MAP[name]) {
+                    // For aliases, we replicate the alias content 'count' times
+                    let base = ALIAS_MAP[name];
+                    let result: RowPiece[] = [];
+                    for (let i = 0; i < count; i++) {
+                        result.push(...JSON.parse(JSON.stringify(base)));
+                    }
+                    if (hash_mark) result[result.length - 1].marking = hash_mark;
+                    if (suffixes.together) result.forEach(p => p.together = true);
+                    if (suffixes.in_name) result.forEach(p => p.in_name = suffixes.in_name);
+                    if (suffixes.marking) result[result.length - 1].marking = suffixes.marking;
+                    return result;
                 }
-                return { ...suffixes, name, count: count1 * count2 };
-            }) as P.Parser<RowPiece>;
+                let item: RowPiece = { ...suffixes, name, count };
+                if (hash_mark) item.marking = hash_mark;
+                return item;
+            }) as P.Parser<RowPiece | RowPiece[]>;
         },
         Suffixes: function () {
             return P.seq(
-                P.string("together").trim(P.optWhitespace).fallback(""),
-                P.string("in").trim(P.optWhitespace).then(P.regexp(/[^,()]+/,)).fallback(""),
-                P.string("mark").trim(P.optWhitespace).then(P.regexp(/[^,()]+/,)).fallback(""),
+                P.alt(P.string("together"), P.string("tog")).trim(P.optWhitespace).fallback(""),
+                P.string("in").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_]+/)).fallback(""),
+                P.string("mark").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_]+/)).fallback(""),
             ).map(([tog, in_name, mark_name]) => {
                 let item = { count: 1 } as RowPiece;
-                if (tog === "together") {
+                if (tog === "together" || tog === "tog") {
                     item.together = true;
                 }
                 if (in_name.length != 0) {
-                    item.in_name = in_name;
+                    item.in_name = in_name.trim();
                 }
                 if (mark_name.length != 0) {
-                    item.marking = mark_name;
+                    item.marking = mark_name.trim();
                 }
                 return item;
             });
@@ -82,19 +116,29 @@ export function make_line_parser() {
                 r.PreMultiply,
                 P.string("(").then(r.ItemList).skip(P.string(")")),
                 r.PostMultiply,
+                P.string("#").then(P.regexp(/[a-zA-Z0-9+_]+/)).fallback(""),
                 r.Suffixes,
-            ).map(([count1, pieces, count2, suffixes]) => {
-                if (count1 != 1 && count2 != 1) {
-                    return P.fail("Cannot provide list multiplier on both sides");
-                }
-                return { ...suffixes, pieces, count: count1 * count2 };
+            ).map(([count1, pieces, count2, hash_mark, suffixes]) => {
+                let item: RowPiece = { ...suffixes, pieces, count: count1 * count2 };
+                if (hash_mark) item.marking = hash_mark;
+                return item;
             }) as P.Parser<RowPiece>;
         },
         Any: function (r) {
             return P.alt(r.List, r.Stitch);
         },
         ItemList: function (r) {
-            return r.Any.sepBy(P.string(",").trim(P.optWhitespace));
+            return r.Any.sepBy(P.string(",").trim(P.optWhitespace)).map(items => {
+                let result: RowPiece[] = [];
+                for (let item of items) {
+                    if (Array.isArray(item)) {
+                        result.push(...item);
+                    } else {
+                        result.push(item);
+                    }
+                }
+                return result;
+            });
         }
     })
 }
@@ -127,6 +171,8 @@ export function parseRows(text: string): { rows: RowPiece[][], errors: boolean[]
         let isValid = true;
         let expectedInput: number | undefined = undefined;
 
+        // If row contains 'turn', it's always valid in terms of input count (it doesn't consume)
+        // Actually, turn should be treated like ch/join in terms of input/output count
         if (i > 0) {
             // Find the last non-empty row to get expected input
             for (let j = i - 1; j >= 0; j--) {
@@ -150,15 +196,15 @@ export function parseRows(text: string): { rows: RowPiece[][], errors: boolean[]
 export function calculateInputStitches(pieces: RowPiece[]): number {
     let inputStitches = 0;
     for (const piece of pieces) {
+        if (piece.name === "ch") {
+            // ch does not consume a stitch
+            continue;
+        }
         if (piece.pieces) {
             const subInput = calculateInputStitches(piece.pieces);
             if (piece.together) {
-                // If the whole group is worked "together", it consumes all sub-stitches
-                // but usually "together" on a group means it's a decrease.
-                // However, based on the parser, it seems it multiplies the count.
                 inputStitches += subInput * piece.count;
             } else if (piece.in_name) {
-                // If worked "in same st", the whole group consumes only 1 stitch (times count)
                 inputStitches += 1 * piece.count;
             } else {
                 inputStitches += subInput * piece.count;
@@ -166,13 +212,10 @@ export function calculateInputStitches(pieces: RowPiece[]): number {
         } else {
             // Basic stitch
             if (piece.together) {
-                // e.g., "sc3together" consumes 3 stitches
                 inputStitches += piece.count;
             } else if (piece.in_name) {
-                // e.g., "3sc in same st" consumes 1 stitch
                 inputStitches += 1;
             } else {
-                // e.g., "3sc" consumes 3 stitches
                 inputStitches += piece.count;
             }
         }
@@ -183,10 +226,13 @@ export function calculateInputStitches(pieces: RowPiece[]): number {
 export function calculateOutputStitches(pieces: RowPiece[]): number {
     let outputStitches = 0;
     for (const piece of pieces) {
+        if (piece.name === "sk") {
+            // sk does not produce a stitch
+            continue;
+        }
         if (piece.pieces) {
             const subOutput = calculateOutputStitches(piece.pieces);
             if (piece.together) {
-                // If worked "together", it results in 1 stitch (times count)
                 outputStitches += 1 * piece.count;
             } else {
                 outputStitches += subOutput * piece.count;
@@ -194,10 +240,10 @@ export function calculateOutputStitches(pieces: RowPiece[]): number {
         } else {
             // Basic stitch
             if (piece.together) {
-                // e.g., "sc3together" results in 1 stitch
                 outputStitches += 1;
+            } else if (piece.name === "join" || piece.name === "turn") {
+                outputStitches += 0;
             } else {
-                // e.g., "3sc" results in 3 stitches, "3sc in same st" results in 3 stitches
                 outputStitches += piece.count;
             }
         }

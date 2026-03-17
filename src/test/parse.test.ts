@@ -62,6 +62,28 @@ test("stitch counts", () => {
     expect(calculate("6x(sc, 2 sc together)")).deep.equal({ in: 18, out: 12 }); // sc consumes 1, 2sc tog consumes 2. Total 3 in, 2 out per repeat. 6 * 3 = 18, 6 * 2 = 12.
     expect(calculate("(sc, dc) together")).deep.equal({ in: 2, out: 1 });
     expect(calculate("3(sc, 2sc in same st)")).deep.equal({ in: 6, out: 9 });
+
+    expect(calculate("ch")).deep.equal({ in: 0, out: 1 });
+    expect(calculate("5ch")).deep.equal({ in: 0, out: 5 });
+    expect(calculate("sk")).deep.equal({ in: 1, out: 0 });
+    expect(calculate("3sk")).deep.equal({ in: 3, out: 0 });
+    expect(calculate("inc")).deep.equal({ in: 1, out: 2 });
+    expect(calculate("dec")).deep.equal({ in: 2, out: 1 });
+    expect(calculate("join red")).deep.equal({ in: 1, out: 0 });
+    expect(calculate("turn")).deep.equal({ in: 1, out: 0 });
+});
+
+test("marks and complex aliases", () => {
+    const { ItemList } = make_line_parser();
+
+    let res = ItemList.tryParse("sc#red, 2inc, dec#blue");
+    expect(res[0].marking).equals("red");
+    expect(res[res.length - 1].marking).equals("blue");
+
+    let res2 = ItemList.tryParse("ch#start, 5ch, join start");
+    expect(res2[0].marking).equals("start");
+    expect(res2[0].name).equals("ch");
+    expect(res2[6].name).equals("join");
 });
 
 test("together", () => {

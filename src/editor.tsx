@@ -29,11 +29,12 @@ class ErrorBoundary extends React.Component<
     }
 }
 
-const defaultText = `6x(2 sc in same st)
-6x(sc, 2 sc in same st)
-6x(2 sc, 2 sc in same st)
+const defaultText = `6sc
+6x(2 sc in same)
+6x(sc, 2 sc in same)
+6x(2 sc, 2 sc in same)
 24 sc
-6x(3 sc, 2 sc in same st)
+6x(3 sc, 2 sc in same)
 30 sc
 30 sc
 30 sc
@@ -122,6 +123,8 @@ const Editor: React.FC = () => {
     const [sphereColor, setSphereColor] = useState("#ffffff");
     const [lineColor, setLineColor] = useState("#ffff00");
     const [experimental, setExperimental] = useState(false);
+    const [autoJoin, setAutoJoin] = useState(false);
+    const [autoTurn, setAutoTurn] = useState(false);
 
     const stretchiness = (1 / springConstant) - 1;
 
@@ -141,10 +144,20 @@ const Editor: React.FC = () => {
                 <div style={{ padding: 16, overflowY: 'auto', flexShrink: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h2 style={{ margin: 0 }}>Simulation Controls</h2>
-                        <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <input type="checkbox" checked={experimental} onChange={e => setExperimental(e.target.checked)} />
-                            Exp.
-                        </label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <input type="checkbox" checked={autoJoin} onChange={e => setAutoJoin(e.target.checked)} />
+                                Join
+                            </label>
+                            <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <input type="checkbox" checked={autoTurn} onChange={e => setAutoTurn(e.target.checked)} />
+                                Turn
+                            </label>
+                            <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <input type="checkbox" checked={experimental} onChange={e => setExperimental(e.target.checked)} />
+                                Exp.
+                            </label>
+                        </div>
                     </div>
                     <div style={{ marginBottom: 8, marginTop: 16 }}>
                         <label htmlFor="iterations-slider">Relaxation Iterations: {iterations}</label>
@@ -519,7 +532,15 @@ const Editor: React.FC = () => {
             />
             <div style={{ width: `calc(100vw - ${sidebarWidth}px)`, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", position: 'relative', zIndex: 0 }}>
                 <ErrorBoundary set={() => (<div>Something went wrong</div>)}>
-                    <CrochetItem2 pattern={finalRows} phys={phys} sphereColor={sphereColor} lineColor={lineColor} experimental={experimental} />
+                    <CrochetItem2
+                        pattern={finalRows}
+                        phys={phys}
+                        sphereColor={sphereColor}
+                        lineColor={lineColor}
+                        experimental={experimental}
+                        autoJoin={autoJoin}
+                        autoTurn={autoTurn}
+                    />
                 </ErrorBoundary>
                 {experimental && <HeatmapIndex />}
             </div>

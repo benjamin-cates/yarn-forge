@@ -15,6 +15,7 @@ export interface SimStitch {
     below: { id: number; dist: number }[];
     prev?: { id: number; dist: number };
     position?: THREE.Vector3;
+    marking?: string;
 }
 
 const apply_dist_constraints = (stitches: SimStitch[], newPositions: THREE.Vector3[], spring_constant: number) => {
