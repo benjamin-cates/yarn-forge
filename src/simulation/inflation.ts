@@ -1,4 +1,4 @@
-import { mulberry32 } from "./CrochetItem2";
+import { mulberry32 } from "../util";
 import type { SimStitch } from "./phys";
 import * as THREE from "three";
 

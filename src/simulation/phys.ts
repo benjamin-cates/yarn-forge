@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { apply_inflation_modifier, apply_local_inflation, apply_repulsion, apply_stochastic_repulsion } from "./inflation";
 
 export interface PhysConfig {
     iterations: number;
@@ -16,6 +17,74 @@ export interface SimStitch {
     prev?: { id: number; dist: number };
     position?: THREE.Vector3;
     marking?: string;
+}
+
+export function relaxStitchPositions(
+    stitches: SimStitch[],
+    phys: PhysConfig,
+) {
+    const {
+        iterations,
+        spring_constant,
+        ortho_constant,
+        repulsionStrength,
+        repulsionRadius,
+        repulsionMode,
+        lambda
+    } = phys;
+
+    const smoothingNeighbors = build_smoothing_neighbors(stitches);
+    const newPositions: THREE.Vector3[] = stitches.map((s) => s.position!.clone());
+    const scratchAfterLambda: THREE.Vector3[] = stitches.map(() => new THREE.Vector3());
+    let grid: any = null;
+
+    // For each iteration, adjust positions to satisfy constraints (rest lengths)
+    for (let iter = 0; iter < iterations; iter++) {
+        // Copy positions to avoid bias (reusing buffers)
+        for (let i = 0; i < stitches.length; i++) {
+            newPositions[i].copy(stitches[i].position!);
+        }
+        apply_ortho_constraints(stitches, newPositions, ortho_constant);
+        // --- Surface Smoothing Constraint (Taubin smoothing: λ pass then μ pass) ---
+        if (iter % 3 == 0) taubin_smoothing(newPositions, smoothingNeighbors, lambda, scratchAfterLambda);
+        apply_dist_constraints(stitches, newPositions, spring_constant);
+        // Update positions
+        stitches.forEach((stitch, i) => {
+            stitch.position!.copy(newPositions[i]);
+        });
+
+        if (iter % 3 === 0 && repulsionStrength > 0) {
+            if (repulsionMode === "grid_inflation") {
+                grid = apply_inflation_modifier(stitches, repulsionStrength, repulsionRadius, 32);
+            } else if (repulsionMode === "stochastic") {
+                apply_stochastic_repulsion(stitches, newPositions, repulsionStrength / 2, repulsionRadius, iter, 10);
+                stitches.forEach((stitch, i) => {
+                    stitch.position!.copy(newPositions[i]);
+                });
+            } else if (repulsionMode === "repulsion") {
+                apply_repulsion(stitches, newPositions, repulsionStrength, repulsionRadius);
+                stitches.forEach((stitch, i) => {
+                    stitch.position!.copy(newPositions[i]);
+                });
+            } else if (repulsionMode === "local_inflation") {
+                apply_local_inflation(stitches, newPositions, repulsionStrength);
+                stitches.forEach((stitch, i) => {
+                    stitch.position!.copy(newPositions[i]);
+                });
+            }
+        }
+    }
+
+    // Center model by subtracting the mean position.
+    let mean = stitches.map(s => s.position).filter(v => v).reduce((a, b) => a?.add(b!), new THREE.Vector3(0, 0, 0))?.divideScalar(stitches.length);
+    for (const s of stitches) {
+        s.position!.sub(mean!);
+    }
+    if (grid) {
+        grid.min.sub(mean!);
+        grid.max.sub(mean!);
+    }
+    return grid;
 }
 
 const apply_dist_constraints = (stitches: SimStitch[], newPositions: THREE.Vector3[], spring_constant: number) => {
