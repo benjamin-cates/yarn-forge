@@ -11,6 +11,12 @@ import type { PhysConfig } from "./simulation/phys";
 
 type Page = 'editor' | 'docs' | 'examples';
 
+export interface PreviewConfig {
+  pattern: string;
+  autoJoin?: boolean;
+  autoTurn?: boolean;
+}
+
 class ErrorBoundary extends React.Component<
   {
     children: React.ReactNode;
@@ -42,9 +48,6 @@ export const defaultText = `6sc
 6x(2 sc, inc)
 24 sc
 6x(3 sc, inc)
-30 sc
-30 sc
-30 sc
 6x(3 sc, dec)
 24xsc
 6x(2 sc, dec)
@@ -53,6 +56,7 @@ export const defaultText = `6sc
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('editor');
+  const [activePreview, setActivePreview] = useState<PreviewConfig | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(420);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -75,7 +79,9 @@ function App() {
   const [hasTextChanges, setHasTextChanges] = useState(false);
 
   // Derived State
-  const { rows, errors, validation } = useMemo(() => parseRows(text), [text]);
+  const { rows, errors, validation } = useMemo(() => {
+    return parseRows(text)
+  }, [text]);
 
   const totalStitches = useMemo(() => {
     return validation.reduce((acc, v) => acc + (v?.outputStitches ?? 0), 0);
@@ -108,22 +114,29 @@ function App() {
 
   useEffect(() => {
     if (!needsManualRender) {
-      setLastRenderedPattern(finalRows);
-      setLastRenderedPhys(phys);
+      console.log("App: Syncing lastRendered because !needsManualRender");
+      setLastRenderedPattern(prev => (JSON.stringify(prev) === JSON.stringify(finalRows) ? prev : finalRows));
+      setLastRenderedPhys(prev => (JSON.stringify(prev) === JSON.stringify(phys) ? prev : phys));
     }
   }, [finalRows, phys, needsManualRender]);
 
   const handleRender = () => {
-    setLastRenderedPattern(finalRows);
-    setLastRenderedPhys(phys);
+    console.log("App: Manually rendering");
+    setLastRenderedPattern(prev => (JSON.stringify(prev) === JSON.stringify(finalRows) ? prev : finalRows));
+    setLastRenderedPhys(prev => (JSON.stringify(prev) === JSON.stringify(phys) ? prev : phys));
     setHasTextChanges(false);
   };
 
-  useEffect(() => {
-    handleRender();
-  }, []);
+  const patternToRender = useMemo(() => {
+    if (activePreview) {
+      const { rows, errors } = parseRows(activePreview.pattern);
+      if (errors.every((e) => !e)) {
+        return rows;
+      }
+    }
+    return needsManualRender ? (lastRenderedPattern ?? finalRows) : finalRows;
+  }, [activePreview, needsManualRender, lastRenderedPattern, finalRows]);
 
-  const patternToRender = needsManualRender ? (lastRenderedPattern ?? finalRows) : finalRows;
   const physToRender = needsManualRender ? (lastRenderedPhys ?? phys) : phys;
 
   const hasChanges = useMemo(() => {
@@ -184,7 +197,12 @@ function App() {
           errors={errors}
         />;
       case 'docs':
-        return <Docs />;
+        return (
+          <Docs
+            activePattern={activePreview?.pattern ?? null}
+            onSelectPattern={(p) => setActivePreview((curr) => (curr?.pattern === p.pattern ? null : p))}
+          />
+        );
       case 'examples':
         return <Examples />;
       default:
@@ -238,8 +256,8 @@ function App() {
               sphereColor={sphereColor}
               lineColor={lineColor}
               experimental={experimental}
-              autoJoin={autoJoin}
-              autoTurn={autoTurn}
+              autoJoin={activePreview ? (activePreview.autoJoin ?? false) : autoJoin}
+              autoTurn={activePreview ? (activePreview.autoTurn ?? false) : autoTurn}
             />
           </ErrorBoundary>
           <PhysicsConfig
