@@ -187,11 +187,12 @@ const apply_ortho_constraints = (stitches: SimStitch[], newPositions: THREE.Vect
             let diff = dot - target_dot;
 
             // Correction: push each vector to reach the target dot product
-            let correction_prev = below_v.clone().multiplyScalar(diff * ortho_constant * 0.05);
-            let correction_below = prev_v.clone().multiplyScalar(diff * ortho_constant * 0.05);
+            let correction_prev = below_v.multiplyScalar(diff * ortho_constant * 0.05);
+            let correction_below = prev_v.multiplyScalar(diff * ortho_constant * 0.05);
 
             newPositions[prevId].sub(correction_prev);
             newPositions[belowId].sub(correction_below);
+            prev_v.divideScalar(diff * ortho_constant * 0.05);
         });
     });
 };

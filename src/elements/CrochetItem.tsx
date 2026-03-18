@@ -30,7 +30,6 @@ export const CrochetItem: React.FC<CrochetItemProps> = ({
     const [stitches, grid] = useMemo(() => {
         const [stitches, row_ids, is_reversed] = crochet(pattern, { autoJoin, autoTurn });
         placeStitchesAnalytically(stitches, row_ids, is_reversed, autoJoin);
-        console.log(JSON.stringify(stitches));
         let grid = relaxStitchPositions(stitches, phys);
         return [stitches, grid] as const;
     }, [pattern, phys, autoJoin, autoTurn]);

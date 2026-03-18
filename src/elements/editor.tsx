@@ -30,20 +30,19 @@ class ErrorBoundary extends React.Component<
 }
 
 const defaultText = `6sc
-6x(2 sc in same)
-6x(sc, 2 sc in same)
-6x(2 sc, 2 sc in same)
+6 inc
+6x(sc, inc)
+6x(2 sc, inc)
 24 sc
-6x(3 sc, 2 sc in same)
+6x(3 sc, inc)
 30 sc
 30 sc
 30 sc
-30 sc
-6x(3 sc, 2 sc together)
+6x(3 sc, dec)
 24xsc
-6x(2 sc, 2 sc together)
-6x(sc, 2 sc together)
-6x(2 sc together)`;
+6x(2 sc, dec)
+6x(sc, dec)
+6 dec`;
 
 
 const Editor: React.FC = () => {
@@ -86,6 +85,10 @@ const Editor: React.FC = () => {
 
     const { rows, errors, validation } = useMemo(() => parseRows(text), [text]);
 
+    const totalStitches = useMemo(() => {
+        return validation.reduce((acc, v) => acc + (v?.outputStitches ?? 0), 0);
+    }, [validation]);
+
     const finalRows = useMemo(() => {
         let currentRowLength = 1000;
         const result: RowPiece[][] = [];
@@ -122,8 +125,9 @@ const Editor: React.FC = () => {
     const [sphereColor, setSphereColor] = useState("#ffffff");
     const [lineColor, setLineColor] = useState("#ffff00");
     const [experimental, setExperimental] = useState(false);
-    const [autoJoin, setAutoJoin] = useState(false);
+    const [autoJoin, setAutoJoin] = useState(true);
     const [autoTurn, setAutoTurn] = useState(false);
+    const [hasTextChanges, setHasTextChanges] = useState(false);
 
     const stretchiness = (1 / springConstant) - 1;
 
@@ -136,6 +140,35 @@ const Editor: React.FC = () => {
         repulsionMode: experimental ? repulsionMode : "stochastic",
         lambda: experimental ? lambda : 0.55,
     } satisfies PhysConfig;
+
+    const needsManualRender = totalStitches > 280;
+    const [lastRenderedPattern, setLastRenderedPattern] = useState<RowPiece[][]>(finalRows);
+    const [lastRenderedPhys, setLastRenderedPhys] = useState<PhysConfig>(phys);
+
+    React.useEffect(() => {
+        if (!needsManualRender) {
+            setLastRenderedPattern(finalRows);
+            setLastRenderedPhys(phys);
+        }
+    }, [finalRows, phys, needsManualRender]);
+
+    const handleRender = () => {
+        setLastRenderedPattern(finalRows);
+        setLastRenderedPhys(phys);
+        setHasTextChanges(false);
+    };
+    React.useEffect(() => {
+        handleRender();
+    }, []);
+
+    const patternToRender = needsManualRender ? (lastRenderedPattern ?? finalRows) : finalRows;
+    const physToRender = needsManualRender ? (lastRenderedPhys ?? phys) : phys;
+
+    const hasChanges = useMemo(() => {
+        if (!needsManualRender) return false;
+        return hasTextChanges ||
+            JSON.stringify(phys) !== JSON.stringify(lastRenderedPhys);
+    }, [phys, lastRenderedPhys, needsManualRender]);
 
     return (
         <div style={{ display: 'flex', width: '100vw', height: '100vh', flexDirection: "row", userSelect: isResizing ? 'none' : 'auto' }}>
@@ -286,7 +319,10 @@ const Editor: React.FC = () => {
                                     ].map(opt => (
                                         <button
                                             key={opt.value}
-                                            onClick={() => setRepulsionStrength(opt.value)}
+                                            onClick={() => {
+                                                setRepulsionStrength(opt.value)
+                                                setLastRenderedPhys({ ...phys, repulsionStrength: opt.value });
+                                            }}
                                             style={{
                                                 flex: 1,
                                                 padding: '4px',
@@ -327,7 +363,7 @@ const Editor: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <div style={{ flex: 1, padding: 16, boxSizing: "border-box", background: "#222", color: "#fff", display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ flex: 1, padding: 16, boxSizing: "border-box", background: "#222", color: "#fff", display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
                     <h2 style={{ marginTop: 0 }}>Crochet Pattern Editor</h2>
                     <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
                         <div
@@ -454,6 +490,7 @@ const Editor: React.FC = () => {
                                 const start = preSelectionRange.toString().length;
 
                                 setText(val);
+                                setHasTextChanges(true);
 
                                 // Restore selection after React render
                                 requestAnimationFrame(() => {
@@ -513,6 +550,40 @@ const Editor: React.FC = () => {
                             {defaultText}
                         </div>
                     </div>
+                    {needsManualRender && (
+                        <div style={{
+                            padding: '12px 0',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            background: '#222',
+                            borderTop: '1px solid #444',
+                            zIndex: 101
+                        }}>
+                            <button
+                                onClick={handleRender}
+                                style={{
+                                    padding: '8px 24px',
+                                    fontSize: '16px',
+                                    fontWeight: 'bold',
+                                    backgroundColor: hasChanges ? '#4CAF50' : '#555',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                    transition: 'background-color 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (hasChanges) e.currentTarget.style.backgroundColor = '#45a049';
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (hasChanges) e.currentTarget.style.backgroundColor = '#4CAF50';
+                                }}
+                            >
+                                {hasChanges ? 'Render Changes!' : 'Up to Date'} ({totalStitches} stitches)
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
             <div
@@ -530,8 +601,8 @@ const Editor: React.FC = () => {
             <div style={{ width: `calc(100vw - ${sidebarWidth}px)`, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", position: 'relative', zIndex: 0 }}>
                 <ErrorBoundary set={() => (<div>Something went wrong</div>)}>
                     <CrochetItem
-                        pattern={finalRows}
-                        phys={phys}
+                        pattern={patternToRender}
+                        phys={physToRender}
                         sphereColor={sphereColor}
                         lineColor={lineColor}
                         experimental={experimental}
