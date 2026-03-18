@@ -159,7 +159,7 @@ export const HeatmapIndex: React.FC = () => {
     return (
         <div style={{
             position: 'absolute',
-            bottom: '20px',
+            top: '20px',
             right: '20px',
             background: 'rgba(0,0,0,0.7)',
             padding: '12px',

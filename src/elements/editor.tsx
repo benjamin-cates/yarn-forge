@@ -1,457 +1,308 @@
-import React, { useState, useMemo } from "react";
-import { calculateInputStitches, calculateOutputStitches, type RowPiece, parseRows } from "../parse";
-import { CrochetItem } from "./CrochetItem";
-import type { PhysConfig } from "../simulation/phys";
-import { HeatmapIndex } from "../simulation/experimental";
-import { PhysicsConfig } from "./PhysicsConfig";
+import React, { useEffect } from "react";
+import { defaultText } from "../App";
 
-class ErrorBoundary extends React.Component<
-    {
-        children: React.ReactNode;
-        set: (error: any) => void;
-    },
-    { hasError: boolean }
-> {
-    constructor(props: any) {
-        super(props);
-        this.state = { hasError: false };
-    }
-    static getDerivedStateFromError() {
-        return { hasError: true };
-    }
-    componentDidCatch(error: any) {
-        this.props.set(error);
-    }
-    render() {
-        if (this.state.hasError) {
-            return null;
-        }
-        return this.props.children;
-    }
+interface EditorProps {
+    text: string;
+    setText: (text: string) => void;
+    autoJoin: boolean;
+    setAutoJoin: (autoJoin: boolean) => void;
+    autoTurn: boolean;
+    setAutoTurn: (autoTurn: boolean) => void;
+    sphereColor: string;
+    setSphereColor: (color: string) => void;
+    lineColor: string;
+    setLineColor: (color: string) => void;
+    totalStitches: number;
+    hasChanges: boolean;
+    handleRender: () => void;
+    needsManualRender: boolean;
+    validation: any[];
+    errors: boolean[];
 }
 
-const defaultText = `6sc
-6 inc
-6x(sc, inc)
-6x(2 sc, inc)
-24 sc
-6x(3 sc, inc)
-30 sc
-30 sc
-30 sc
-6x(3 sc, dec)
-24xsc
-6x(2 sc, dec)
-6x(sc, dec)
-6 dec`;
-
-
-const Editor: React.FC = () => {
-    const [text, setText] = useState(defaultText);
+const Editor: React.FC<EditorProps> = ({
+    text,
+    setText,
+    autoJoin,
+    setAutoJoin,
+    autoTurn,
+    setAutoTurn,
+    sphereColor,
+    setSphereColor,
+    lineColor,
+    setLineColor,
+    totalStitches,
+    hasChanges,
+    handleRender,
+    needsManualRender,
+    validation,
+    errors,
+}) => {
     const editorRef = React.useRef<HTMLDivElement>(null);
     const overlayRef = React.useRef<HTMLDivElement>(null);
 
-    const [sidebarWidth, setSidebarWidth] = useState(420);
-    const [isResizing, setIsResizing] = useState(false);
-
-    const startResizing = React.useCallback(() => {
-        setIsResizing(true);
-    }, []);
-
-    const stopResizing = React.useCallback(() => {
-        setIsResizing(false);
-    }, []);
-
-    const resize = React.useCallback(
-        (mouseMoveEvent: MouseEvent) => {
-            if (isResizing) {
-                const newWidth = mouseMoveEvent.clientX;
-                console.log(newWidth);
-                if (newWidth >= 320 && newWidth <= 800) {
-                    setSidebarWidth(newWidth);
-                }
-            }
-        },
-        [isResizing]
-    );
-
-    React.useEffect(() => {
-        window.addEventListener("mousemove", resize, { capture: true });
-        window.addEventListener("mouseup", stopResizing, { capture: true });
-        return () => {
-            window.removeEventListener("mousemove", resize, { capture: true });
-            window.removeEventListener("mouseup", stopResizing, { capture: true });
-        };
-    }, [resize]);
-
-    const { rows, errors, validation } = useMemo(() => parseRows(text), [text]);
-
-    const totalStitches = useMemo(() => {
-        return validation.reduce((acc, v) => acc + (v?.outputStitches ?? 0), 0);
-    }, [validation]);
-
-    const finalRows = useMemo(() => {
-        let currentRowLength = 1000;
-        const result: RowPiece[][] = [];
-        for (let i = 0; i < rows.length; i++) {
-            if (errors[i]) {
-                break;
-            }
-            if (rows[i].length === 0) {
-                result.push([]);
-                continue;
-            }
-            const required = calculateInputStitches(rows[i]);
-            if (required > currentRowLength) {
-                break;
-            }
-            result.push(rows[i]);
-            currentRowLength = calculateOutputStitches(rows[i]);
-        }
-        return result;
-    }, [rows, errors]);
-
-    React.useEffect(() => {
+    useEffect(() => {
         if (editorRef.current && editorRef.current.innerText !== text) {
             editorRef.current.innerText = text;
         }
     }, []);
-    const [phys, setPhys] = useState<PhysConfig>({
-        iterations: 150,
-        spring_constant: 0.5,
-        ortho_constant: 0.6,
-        repulsionStrength: 1,
-        repulsionRadius: 2.3,
-        repulsionMode: "stochastic",
-        lambda: 0.5,
-    });
-    const [sphereColor, setSphereColor] = useState("#ffffff");
-    const [lineColor, setLineColor] = useState("#ffff00");
-    const [experimental, setExperimental] = useState(false);
-    const [autoJoin, setAutoJoin] = useState(true);
-    const [autoTurn, setAutoTurn] = useState(false);
-    const [hasTextChanges, setHasTextChanges] = useState(false);
-
-    const needsManualRender = totalStitches > 280;
-    const [lastRenderedPattern, setLastRenderedPattern] = useState<RowPiece[][]>(finalRows);
-    const [lastRenderedPhys, setLastRenderedPhys] = useState<PhysConfig>(phys);
-
-    React.useEffect(() => {
-        if (!needsManualRender) {
-            setLastRenderedPattern(finalRows);
-            setLastRenderedPhys(phys);
-        }
-    }, [finalRows, phys, needsManualRender]);
-
-    const handleRender = () => {
-        setLastRenderedPattern(finalRows);
-        setLastRenderedPhys(phys);
-        setHasTextChanges(false);
-    };
-    React.useEffect(() => {
-        handleRender();
-    }, []);
-
-    const patternToRender = needsManualRender ? (lastRenderedPattern ?? finalRows) : finalRows;
-    const physToRender = needsManualRender ? (lastRenderedPhys ?? phys) : phys;
-
-    const hasChanges = useMemo(() => {
-        if (!needsManualRender) return false;
-        return hasTextChanges ||
-            JSON.stringify(phys) !== JSON.stringify(lastRenderedPhys);
-    }, [phys, lastRenderedPhys, needsManualRender]);
 
     return (
-        <div style={{ display: 'flex', width: '100vw', height: '100vh', flexDirection: "row", userSelect: isResizing ? 'none' : 'auto' }}>
-            <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', background: '#222', color: '#fff', boxShadow: '2px 0 8px #0004', zIndex: 2 }}>
-                <div style={{ padding: 16, overflowY: 'auto', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h2 style={{ margin: 0 }}>Crochet Editor</h2>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <input type="checkbox" checked={autoJoin} onChange={e => setAutoJoin(e.target.checked)} />
-                                Auto Join
-                            </label>
-                            <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <input type="checkbox" checked={autoTurn} onChange={e => setAutoTurn(e.target.checked)} />
-                                Auto Turn
-                            </label>
-                        </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', }}>
-                        <div style={{ flex: 1 }}>
-                            <input
-                                id="sphere-color-picker"
-                                type="color"
-                                value={sphereColor}
-                                onChange={e => setSphereColor(e.target.value)}
-                                style={{ width: '100%', height: '30px', border: 'none', padding: 0, background: 'none', cursor: 'pointer' }}
-                            />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                            <input
-                                id="line-color-picker"
-                                type="color"
-                                value={lineColor}
-                                onChange={e => setLineColor(e.target.value)}
-                                style={{ width: '100%', height: '30px', border: 'none', padding: 0, background: 'none', cursor: 'pointer' }}
-                            />
-                        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#222', color: '#fff', minHeight: 0 }}>
+            <div style={{ padding: 16, overflowY: 'auto', flexShrink: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ margin: 0 }}>Crochet Editor</h2>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <input type="checkbox" checked={autoJoin} onChange={e => setAutoJoin(e.target.checked)} />
+                            Auto Join
+                        </label>
+                        <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <input type="checkbox" checked={autoTurn} onChange={e => setAutoTurn(e.target.checked)} />
+                            Auto Turn
+                        </label>
                     </div>
                 </div>
-                <div style={{ flex: 1, padding: 16, paddingTop: 0, boxSizing: "border-box", background: "#222", color: "#fff", display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
-                    <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-                        <div
-                            ref={overlayRef}
-                            style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                pointerEvents: 'none',
-                                whiteSpace: 'pre-wrap',
-                                fontFamily: "monospace",
-                                fontSize: 16,
-                                lineHeight: '1.4em',
-                                padding: 8,
-                                color: '#fff',
-                                border: '1px solid transparent',
-                                zIndex: 100
-                            }}
-                        >
-                            {text.split('\n').map((line, i) => {
-                                const v = validation[i];
-                                const hasValidationError = v && !v.isValid && line.trim().length > 0;
-                                return (
-                                    <div key={i} style={{
-                                        color: errors[i] ? '#ff5555' : '#fff',
-                                        minHeight: '1.4em',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        position: 'relative',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        <span>{line || ' '}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                                            {hasValidationError && (
-                                                <div style={{
-                                                    background: '#ffaa00',
-                                                    color: '#000',
-                                                    fontSize: '11px',
-                                                    padding: '0px 6px',
-                                                    lineHeight: "1.2em",
-                                                    borderRadius: '4px',
-                                                    fontWeight: 'bold',
-                                                    marginLeft: '10px',
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                                                    position: "absolute",
-                                                    left: "calc(100% + 5px)",
-                                                    zIndex: 100,
-                                                }}>
-                                                    Mismatch! Expected {v.inputStitches} sts in prev layer.
-                                                </div>
-                                            )}
-                                            {v && line.trim().length > 0 && !errors[i] && (
-                                                <span style={{ fontSize: '12px', color: '#888', marginLeft: '10px', flexShrink: 0 }}>
-                                                    {v.outputStitches}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div
-                            ref={editorRef}
-                            contentEditable
-                            spellCheck="false"
-                            suppressContentEditableWarning
-                            onScroll={(e) => {
-                                if (overlayRef.current) {
-                                    overlayRef.current.scrollTop = e.currentTarget.scrollTop;
-                                }
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const selection = window.getSelection();
-                                    if (!selection || selection.rangeCount === 0) return;
-                                    const range = selection.getRangeAt(0);
-                                    range.deleteContents();
-
-                                    const textNode = document.createTextNode('\n');
-                                    range.insertNode(textNode);
-
-                                    const isAtEnd = (container: Node, offset: number) => {
-                                        if (container === e.currentTarget) return offset === container.childNodes.length;
-                                        let curr: Node | null = container;
-                                        while (curr && curr !== e.currentTarget) {
-                                            if (curr.nextSibling) return false;
-                                            curr = curr.parentNode;
-                                        }
-                                        return offset === (container.nodeType === Node.TEXT_NODE ? container.textContent?.length : container.childNodes.length);
-                                    };
-
-                                    if (isAtEnd(range.endContainer, range.endOffset)) {
-                                        const extraNode = document.createTextNode('\n');
-                                        range.insertNode(extraNode);
-                                    }
-
-                                    range.setStartAfter(textNode);
-                                    range.setEndAfter(textNode);
-                                    selection.removeAllRanges();
-                                    selection.addRange(range);
-
-                                    const val = (e.currentTarget as HTMLDivElement).innerText;
-                                    setText(val);
-                                }
-                            }}
-                            onInput={(e) => {
-                                const target = e.currentTarget;
-                                const val = target.innerText;
-
-                                // Save selection
-                                const selection = window.getSelection();
-                                if (!selection || selection.rangeCount === 0) {
-                                    setText(val);
-                                    return;
-                                }
-
-                                const range = selection.getRangeAt(0);
-                                const preSelectionRange = range.cloneRange();
-                                preSelectionRange.selectNodeContents(target);
-                                preSelectionRange.setEnd(range.startContainer, range.startOffset);
-                                const start = preSelectionRange.toString().length;
-
-                                setText(val);
-                                setHasTextChanges(true);
-
-                                // Restore selection after React render
-                                requestAnimationFrame(() => {
-                                    if (!editorRef.current) return;
-                                    const newRange = document.createRange();
-                                    const selection = window.getSelection();
-                                    if (!selection) return;
-
-                                    let charCount = 0;
-                                    const nodeStack: Node[] = [editorRef.current];
-
-                                    while (nodeStack.length > 0) {
-                                        const node = nodeStack.pop()!;
-                                        if (node.nodeType === Node.TEXT_NODE) {
-                                            const nextCharCount = charCount + node.textContent!.length;
-                                            if (start <= nextCharCount) {
-                                                newRange.setStart(node, start - charCount);
-                                                newRange.collapse(true);
-                                                selection.removeAllRanges();
-                                                selection.addRange(newRange);
-                                                break;
-                                            }
-                                            charCount = nextCharCount;
-                                        } else {
-                                            for (let i = node.childNodes.length - 1; i >= 0; i--) {
-                                                nodeStack.push(node.childNodes[i]);
-                                            }
-                                        }
-                                    }
-                                });
-                            }}
-                            onPaste={(e) => {
-                                e.preventDefault();
-                                const text = e.clipboardData.getData('text/plain');
-                                document.execCommand('insertText', false, text);
-                            }}
-                            style={{
-                                width: "100%",
-                                height: "100%",
-                                background: "#111",
-                                color: "transparent",
-                                caretColor: "#fff",
-                                fontFamily: "monospace",
-                                fontSize: 16,
-                                lineHeight: '1.4em',
-                                border: "1px solid #444",
-                                borderRadius: 4,
-                                padding: 8,
-                                boxSizing: 'border-box',
-                                outline: 'none',
-                                overflowY: 'auto',
-                                whiteSpace: 'pre-wrap',
-                                position: 'relative',
-                                zIndex: 2
-                            }}
-                        >
-                            {defaultText}
-                        </div>
+                <div style={{ display: 'flex', gap: '8px', }}>
+                    <div style={{ flex: 1 }}>
+                        <input
+                            id="sphere-color-picker"
+                            type="color"
+                            value={sphereColor}
+                            onChange={e => setSphereColor(e.target.value)}
+                            style={{ width: '100%', height: '30px', border: 'none', padding: 0, background: 'none', cursor: 'pointer' }}
+                        />
                     </div>
-                    {needsManualRender && (
-                        <div style={{
-                            padding: '12px 0',
-                            display: 'flex',
-                            justifyContent: 'center',
-                            background: '#222',
-                            borderTop: '1px solid #444',
-                            zIndex: 101
-                        }}>
-                            <button
-                                onClick={handleRender}
-                                style={{
-                                    padding: '8px 24px',
-                                    fontSize: '16px',
-                                    fontWeight: 'bold',
-                                    backgroundColor: hasChanges ? '#4CAF50' : '#555',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                                    transition: 'background-color 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (hasChanges) e.currentTarget.style.backgroundColor = '#45a049';
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (hasChanges) e.currentTarget.style.backgroundColor = '#4CAF50';
-                                }}
-                            >
-                                {hasChanges ? 'Render Changes!' : 'Up to Date'} ({totalStitches} stitches)
-                            </button>
-                        </div>
-                    )}
+                    <div style={{ flex: 1 }}>
+                        <input
+                            id="line-color-picker"
+                            type="color"
+                            value={lineColor}
+                            onChange={e => setLineColor(e.target.value)}
+                            style={{ width: '100%', height: '30px', border: 'none', padding: 0, background: 'none', cursor: 'pointer' }}
+                        />
+                    </div>
                 </div>
             </div>
-            <div
-                style={{
-                    width: '4px',
-                    cursor: 'col-resize',
-                    background: isResizing ? '#666' : 'transparent',
-                    zIndex: 3,
-                    transition: 'background 0.2s'
-                }}
-                onMouseDown={startResizing}
-                onMouseEnter={(e) => { if (!isResizing) e.currentTarget.style.background = '#444'; }}
-                onMouseLeave={(e) => { if (!isResizing) e.currentTarget.style.background = 'transparent'; }}
-            />
-            <div style={{ width: `calc(100vw - ${sidebarWidth}px)`, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", position: 'relative', zIndex: 0 }}>
-                <ErrorBoundary set={() => (<div>Something went wrong</div>)}>
-                    <CrochetItem
-                        pattern={patternToRender}
-                        phys={physToRender}
-                        sphereColor={sphereColor}
-                        lineColor={lineColor}
-                        experimental={experimental}
-                        autoJoin={autoJoin}
-                        autoTurn={autoTurn}
-                    />
-                </ErrorBoundary>
-                <PhysicsConfig
-                    phys={phys}
-                    setPhys={setPhys}
-                    experimental={experimental}
-                    setExperimental={setExperimental}
-                />
-                {experimental && <HeatmapIndex />}
+            <div style={{ flex: 1, padding: 16, paddingTop: 0, boxSizing: "border-box", background: "#222", color: "#fff", display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
+                <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+                    <div
+                        ref={overlayRef}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            pointerEvents: 'none',
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: "monospace",
+                            fontSize: 16,
+                            lineHeight: '1.4em',
+                            padding: 8,
+                            color: '#fff',
+                            border: '1px solid transparent',
+                            zIndex: 100
+                        }}
+                    >
+                        {text.split('\n').map((line, i) => {
+                            const v = validation[i];
+                            const hasValidationError = v && !v.isValid && line.trim().length > 0;
+                            return (
+                                <div key={i} style={{
+                                    color: errors[i] ? '#ff5555' : '#fff',
+                                    minHeight: '1.4em',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    position: 'relative',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    <span>{line || ' '}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        {hasValidationError && (
+                                            <div style={{
+                                                background: '#ffaa00',
+                                                color: '#000',
+                                                fontSize: '11px',
+                                                padding: '0px 6px',
+                                                lineHeight: "1.2em",
+                                                borderRadius: '4px',
+                                                fontWeight: 'bold',
+                                                marginLeft: '10px',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                                                position: "absolute",
+                                                left: "calc(100% + 5px)",
+                                                zIndex: 100,
+                                            }}>
+                                                Mismatch! Expected {v.inputStitches} sts in prev layer.
+                                            </div>
+                                        )}
+                                        {v && line.trim().length > 0 && !errors[i] && (
+                                            <span style={{ fontSize: '12px', color: '#888', marginLeft: '10px', flexShrink: 0 }}>
+                                                {v.outputStitches}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div
+                        ref={editorRef}
+                        contentEditable
+                        spellCheck="false"
+                        suppressContentEditableWarning
+                        onScroll={(e) => {
+                            if (overlayRef.current) {
+                                overlayRef.current.scrollTop = e.currentTarget.scrollTop;
+                            }
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const selection = window.getSelection();
+                                if (!selection || selection.rangeCount === 0) return;
+                                const range = selection.getRangeAt(0);
+                                range.deleteContents();
+
+                                const textNode = document.createTextNode('\n');
+                                range.insertNode(textNode);
+
+                                const isAtEnd = (container: Node, offset: number) => {
+                                    if (container === e.currentTarget) return offset === container.childNodes.length;
+                                    let curr: Node | null = container;
+                                    while (curr && curr !== e.currentTarget) {
+                                        if (curr.nextSibling) return false;
+                                        curr = curr.parentNode;
+                                    }
+                                    return offset === (container.nodeType === Node.TEXT_NODE ? container.textContent?.length : container.childNodes.length);
+                                };
+
+                                if (isAtEnd(range.endContainer, range.endOffset)) {
+                                    const extraNode = document.createTextNode('\n');
+                                    range.insertNode(extraNode);
+                                }
+
+                                range.setStartAfter(textNode);
+                                range.setEndAfter(textNode);
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+
+                                const val = (e.currentTarget as HTMLDivElement).innerText;
+                                setText(val);
+                            }
+                        }}
+                        onInput={(e) => {
+                            const target = e.currentTarget;
+                            const val = target.innerText;
+
+                            // Save selection
+                            const selection = window.getSelection();
+                            if (!selection || selection.rangeCount === 0) {
+                                setText(val);
+                                return;
+                            }
+
+                            const range = selection.getRangeAt(0);
+                            const preSelectionRange = range.cloneRange();
+                            preSelectionRange.selectNodeContents(target);
+                            preSelectionRange.setEnd(range.startContainer, range.startOffset);
+                            const start = preSelectionRange.toString().length;
+
+                            setText(val);
+
+                            // Restore selection after React render
+                            requestAnimationFrame(() => {
+                                if (!editorRef.current) return;
+                                const newRange = document.createRange();
+                                const selection = window.getSelection();
+                                if (!selection) return;
+
+                                let charCount = 0;
+                                const nodeStack: Node[] = [editorRef.current];
+
+                                while (nodeStack.length > 0) {
+                                    const node = nodeStack.pop()!;
+                                    if (node.nodeType === Node.TEXT_NODE) {
+                                        const nextCharCount = charCount + node.textContent!.length;
+                                        if (start <= nextCharCount) {
+                                            newRange.setStart(node, start - charCount);
+                                            newRange.collapse(true);
+                                            selection.removeAllRanges();
+                                            selection.addRange(newRange);
+                                            break;
+                                        }
+                                        charCount = nextCharCount;
+                                    } else {
+                                        for (let i = node.childNodes.length - 1; i >= 0; i--) {
+                                            nodeStack.push(node.childNodes[i]);
+                                        }
+                                    }
+                                }
+                            });
+                        }}
+                        onPaste={(e) => {
+                            e.preventDefault();
+                            const text = e.clipboardData.getData('text/plain');
+                            document.execCommand('insertText', false, text);
+                        }}
+                        style={{
+                            width: "100%",
+                            height: "100%",
+                            background: "#111",
+                            color: "transparent",
+                            caretColor: "#fff",
+                            fontFamily: "monospace",
+                            fontSize: 16,
+                            lineHeight: '1.4em',
+                            border: "1px solid #444",
+                            borderRadius: 4,
+                            padding: 8,
+                            boxSizing: 'border-box',
+                            outline: 'none',
+                            overflowY: 'auto',
+                            whiteSpace: 'pre-wrap',
+                            position: 'relative',
+                            zIndex: 2
+                        }}
+                    >
+                        {defaultText}
+                    </div>
+                </div>
+                {needsManualRender && (
+                    <div style={{
+                        padding: '12px 0',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        background: '#222',
+                        borderTop: '1px solid #444',
+                        zIndex: 101
+                    }}>
+                        <button
+                            onClick={handleRender}
+                            style={{
+                                padding: '8px 24px',
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                backgroundColor: hasChanges ? '#4CAF50' : '#555',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (hasChanges) e.currentTarget.style.backgroundColor = '#45a049';
+                            }}
+                            onMouseLeave={(e) => {
+                                if (hasChanges) e.currentTarget.style.backgroundColor = '#4CAF50';
+                            }}
+                        >
+                            {hasChanges ? 'Render Changes!' : 'Up to Date'} ({totalStitches} stitches)
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
