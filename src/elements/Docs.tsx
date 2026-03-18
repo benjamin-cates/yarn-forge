@@ -53,9 +53,9 @@ const StitchExample: React.FC<StitchExampleProps> = ({ name, description, config
 };
 
 const docs_patterns: Record<string, PreviewConfig> = {
-    basic_stitches: { pattern: "7sc\nsc,hdc,dc,tc,dc,hdc,sc", autoJoin: false, autoTurn: false },
+    basic_stitches: { pattern: "4sc\nsc#single, hdc#half_double,dc#double,tc#treble", autoJoin: false, autoTurn: false },
     shaping: { pattern: "6sc\n6inc\n6x(inc, sc)\n18sc\n6x(dec, sc)\n6dec", autoJoin: true, autoTurn: false },
-    voids: { pattern: "6sc\n6x(dc, 3ch)\n12x(dc, 2ch, sk)", autoJoin: true, autoTurn: false },
+    voids: { pattern: "6sc\n6x(dc, 3ch#chain)\n12x(dc, 2ch, sk)", autoJoin: true, autoTurn: false },
     join: { pattern: "6sc\n6sc, join", autoJoin: false, autoTurn: false },
     turn: { pattern: "8sc\nsc#start1, dc, 5sc, sc#end1, turn\nsc#start2, dc, 5sc, sc#end2", autoJoin: false, autoTurn: false },
     together: { pattern: "9sc\n3x(sc, (sc, dc) together)", autoJoin: true, autoTurn: false },
