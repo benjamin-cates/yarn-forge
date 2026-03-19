@@ -271,6 +271,7 @@ const sliding_blur_3d = (grid: DensityGrid, radius: number = 2): void => {
     data.set(temp);
 };
 
+// @ts-ignore
 const fast_blur_3d = (grid: DensityGrid, passes: number = 3): void => {
     const res = grid.resolution;
     const data = grid.values;
