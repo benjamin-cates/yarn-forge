@@ -1,75 +1,47 @@
-# React + TypeScript + Vite
+# 🧶 Yarn Forge: Crochet Simulator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Yarn Forge is a powerful, web-based 3D crochet pattern simulator and designer.
 
-Currently, two official plugins are available:
+[Try it now!](https://benjamin-cates.github.io/yarn-forge)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- **Real-time 3D Visualization**: Powered by [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber).
+- **Interactive Editor**: Live validation of stitch counts and instant feedback as you type.
+- **Pattern Examples**: Pre-loaded examples to get started quickly with common shapes like spheres, flat circles, and more.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## Pattern Syntax
 
-Note: This will impact Vite dev & build performances.
+Patterns are written line-by-line, where each line typically represents a row or round.
 
-## Expanding the ESLint configuration
+### Basic Stitches
+- `sc`: Single Crochet
+- `hdc`: Half Double Crochet
+- `dc`: Double Crochet
+- `tc`: Treble Crochet
+- `ch`: Chain
+- `sk`: Skip
+- `slst`: Slip Stitch (often used as `join`)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Shaping & Logic
+- `inc`: Increase (2 sc in next)
+- `dec`: Decrease (sc 2 together)
+- `together` / `tog`: Cluster multiple stitches into one top (e.g., `(sc, dc) together`)
+- `in [marker]`: Work stitches into a specific tagged location.
+- `6x(...)`: Multipliers for repeating sequences.
+- `#tag`: Mark a stitch for future reference (e.g., `sc#start`).
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Example Pattern (Sphere)
+```text
+6 sc
+6 inc
+6x(sc, inc)
+6x(2 sc, inc)
+24 sc
+6x(3 sc, inc)
+6x(3 sc, dec)
+24xsc
+6x(2 sc, dec)
+6x(sc, dec)
+6 dec
 ```
