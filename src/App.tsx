@@ -11,6 +11,27 @@ import type { PhysConfig } from "./simulation/phys";
 
 type Page = 'editor' | 'docs' | 'examples';
 
+function getFinalRows(rows: RowPiece[][], errors: any[]): RowPiece[][] {
+  let currentRowLength = 1000;
+  const result: RowPiece[][] = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (errors[i]) {
+      break;
+    }
+    if (rows[i].length === 0) {
+      result.push([]);
+      continue;
+    }
+    const required = calculateInputStitches(rows[i]);
+    if (required > currentRowLength) {
+      break;
+    }
+    result.push(rows[i]);
+    currentRowLength = calculateOutputStitches(rows[i]);
+  }
+  return result;
+}
+
 export interface PreviewConfig {
   pattern: string;
   autoJoin?: boolean;
@@ -87,26 +108,7 @@ function App() {
     return validation.reduce((acc, v) => acc + (v?.outputStitches ?? 0), 0);
   }, [validation]);
 
-  const finalRows = useMemo(() => {
-    let currentRowLength = 1000;
-    const result: RowPiece[][] = [];
-    for (let i = 0; i < rows.length; i++) {
-      if (errors[i]) {
-        break;
-      }
-      if (rows[i].length === 0) {
-        result.push([]);
-        continue;
-      }
-      const required = calculateInputStitches(rows[i]);
-      if (required > currentRowLength) {
-        break;
-      }
-      result.push(rows[i]);
-      currentRowLength = calculateOutputStitches(rows[i]);
-    }
-    return result;
-  }, [rows, errors]);
+  const finalRows = useMemo(() => getFinalRows(rows, errors), [rows, errors]);
 
   const needsManualRender = totalStitches > 280;
   const [lastRenderedPattern, setLastRenderedPattern] = useState<RowPiece[][]>(finalRows);
@@ -120,12 +122,14 @@ function App() {
     }
   }, [finalRows, phys, needsManualRender]);
 
-  const handleRender = () => {
+  const handleRender = useCallback((patternOverride?: RowPiece[][], physOverride?: PhysConfig) => {
     console.log("App: Manually rendering");
-    setLastRenderedPattern(prev => (JSON.stringify(prev) === JSON.stringify(finalRows) ? prev : finalRows));
-    setLastRenderedPhys(prev => (JSON.stringify(prev) === JSON.stringify(phys) ? prev : phys));
+    const pattern = patternOverride ?? finalRows;
+    const p = physOverride ?? phys;
+    setLastRenderedPattern(prev => (JSON.stringify(prev) === JSON.stringify(pattern) ? prev : pattern));
+    setLastRenderedPhys(prev => (JSON.stringify(prev) === JSON.stringify(p) ? prev : p));
     setHasTextChanges(false);
-  };
+  }, [finalRows, phys]);
 
   const patternToRender = useMemo(() => {
     if (activePreview) {
@@ -204,7 +208,13 @@ function App() {
           />
         );
       case 'examples':
-        return <Examples />;
+        return <Examples onTransfer={(p) => {
+          const { rows, errors } = parseRows(p);
+          const fr = getFinalRows(rows, errors);
+          setText(p);
+          setCurrentPage('editor');
+          handleRender(fr, phys);
+        }} />;
       default:
         return null;
     }

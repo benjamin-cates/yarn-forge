@@ -83,7 +83,7 @@ export const CrochetItem: React.FC<CrochetItemProps> = ({
             {stitches.map((stitch, id) => (
                 <group key={id} position={stitch.position!}>
                     <mesh>
-                        <sphereGeometry args={[0.1]} />
+                        <sphereGeometry args={[0.1, 7, 7]} />
                         <meshBasicMaterial color={experimental ? getHeatmapColor(tensions[id].avgTension) : sphereColor} />
                     </mesh>
                     {stitch.marking && (() => {

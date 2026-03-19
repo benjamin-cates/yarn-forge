@@ -277,7 +277,7 @@ const Editor: React.FC<EditorProps> = ({
                         background: '#222',
                         borderTop: '1px solid #444',
                         zIndex: 101
-                    }}>
+                    }} id="render_button">
                         <button
                             onClick={handleRender}
                             style={{
