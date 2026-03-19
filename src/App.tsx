@@ -196,7 +196,7 @@ function App() {
           setLineColor={setLineColor}
           totalStitches={totalStitches}
           hasChanges={hasChanges}
-          handleRender={handleRender}
+          handleRender={() => handleRender()}
           needsManualRender={needsManualRender}
           validation={validation}
           errors={errors}
