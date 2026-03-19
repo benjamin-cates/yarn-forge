@@ -3,13 +3,14 @@ import './style/App.css';
 import Editor from './elements/editor';
 import Docs from './elements/Docs';
 import Examples from './elements/Examples';
+import About from './elements/About';
 import { CrochetItem } from "./elements/CrochetItem";
 import { PhysicsConfig } from "./elements/PhysicsConfig";
 import { HeatmapIndex } from "./simulation/experimental";
 import { calculateInputStitches, calculateOutputStitches, type RowPiece, parseRows } from "./parse";
 import type { PhysConfig } from "./simulation/phys";
 
-type Page = 'editor' | 'docs' | 'examples';
+type Page = 'editor' | 'docs' | 'examples' | 'about';
 
 function getFinalRows(rows: RowPiece[][], errors: any[]): RowPiece[][] {
   let currentRowLength = 1000;
@@ -215,6 +216,8 @@ function App() {
           setCurrentPage('editor');
           handleRender(fr, phys);
         }} />;
+      case 'about':
+        return <About />;
       default:
         return null;
     }
@@ -242,6 +245,12 @@ function App() {
               onClick={() => setCurrentPage('examples')}
             >
               Examples
+            </button>
+            <button
+              className={currentPage === 'about' ? 'active' : ''}
+              onClick={() => setCurrentPage('about')}
+            >
+              About
             </button>
           </nav>
           {renderSidebarContent()}

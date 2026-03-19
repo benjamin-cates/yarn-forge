@@ -21,12 +21,11 @@ Patterns are written line-by-line, where each line typically represents a row or
 - `tc`: Treble Crochet
 - `ch`: Chain
 - `sk`: Skip
-- `slst`: Slip Stitch (often used as `join`)
 
 ### Shaping & Logic
 - `inc`: Increase (2 sc in next)
 - `dec`: Decrease (sc 2 together)
-- `together` / `tog`: Cluster multiple stitches into one top (e.g., `(sc, dc) together`)
+- `together`: Cluster multiple stitches into one top (e.g., `(sc, dc) together`)
 - `in [marker]`: Work stitches into a specific tagged location.
 - `6x(...)`: Multipliers for repeating sequences.
 - `#tag`: Mark a stitch for future reference (e.g., `sc#start`).
@@ -45,3 +44,5 @@ Patterns are written line-by-line, where each line typically represents a row or
 6x(sc, dec)
 6 dec
 ```
+
+Built with Vite, React Three Fiber, and Gemini 3.0 Flash.
