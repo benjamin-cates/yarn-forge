@@ -60,7 +60,8 @@ const docs_patterns: Record<string, PreviewConfig> = {
     turn: { pattern: "8sc\nsc#start1, dc, 5sc, sc#end1, turn\nsc#start2, dc, 5sc, sc#end2", autoJoin: false, autoTurn: false },
     together: { pattern: "9sc\n3x(sc, (sc, dc) together)", autoJoin: true, autoTurn: false },
     in: { pattern: "6sc\n6x(2sc in next)", autoJoin: false, autoTurn: false },
-    markers: { pattern: "6sc\n6inc\n6x(sc,inc)\n5x(2sc,inc), 2sc, inc#red\n11sc, 2ch, dc in red, 2ch, 12sc", autoJoin: true, autoTurn: false }
+    near_hook: { pattern: "ch 8, sc in hook-3", autoJoin: false, autoTurn: false },
+    markers: { pattern: "3 ch, ch#red, 2ch, dc in red, 2ch", autoJoin: false, autoTurn: false }
 };
 
 export default function Docs({ activePattern, onSelectPattern }: { activePattern: string | null, onSelectPattern: (config: PreviewConfig) => void }) {
@@ -120,25 +121,34 @@ export default function Docs({ activePattern, onSelectPattern }: { activePattern
                         onClick={onSelectPattern}
                         isActive={activePattern === docs_patterns.together.pattern}
                         name="together"
-                        description="Cluster stitches together into one top."
+                        description="Cluster stitches together into one top (like decrease)."
                         config={docs_patterns.together}
                         explanation="Unlike a standard decrease, 'together' can be used with any number of stitches to create clusters or bobbles."
                     />
                     <StitchExample
                         onClick={onSelectPattern}
                         isActive={activePattern === docs_patterns.in.pattern}
-                        name="in"
+                        name="'in' fanning"
                         description="Work multiple stitches into a single base."
                         config={docs_patterns.in}
                         explanation="Directly specifies that multiple stitches should share the same base stitch. 'inc' is an alias for '2sc in next'."
                     />
                     <StitchExample
                         onClick={onSelectPattern}
+                        isActive={activePattern === docs_patterns.near_hook.pattern}
+                        name="Near hook markers"
+                        description="Work stitches near the hook (ex. 2nd chain from hook)"
+                        config={docs_patterns.near_hook}
+                        explanation="This pattern shows a chain 8 then a stitch in the '3rd stitch from hook', which is encoded as 'hook-3' in Yarn Forge. This is interpreted as 'hook position minus 3 stitches'."
+                    />
+
+                    <StitchExample
+                        onClick={onSelectPattern}
                         isActive={activePattern === docs_patterns.markers.pattern}
                         name="Markers (#tag)"
                         description="Tag stitches to reference them later."
                         config={docs_patterns.markers}
-                        explanation="By tagging a stitch with '#red', you can work into it later using 'in red', regardless of where you are in the pattern. Great for complex construction."
+                        explanation="By tagging a stitch with '#red', you can work into it later using 'in red', regardless of where you are in the pattern. You can also use relative markers like 'in red+1' or 'in red-1' to work in the stitches near red. Any markers named after colors will be that color in the 3D preview."
                     />
                 </ul>
             </section>

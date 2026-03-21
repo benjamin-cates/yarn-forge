@@ -73,6 +73,57 @@ test("crochet with marking and resolve_in_name", () => {
     expect(stitches[3].below[0].id).toBe(0); // Should be connected to the marked stitch
 });
 
+test("crochet with calculated marking offsets", () => {
+    const rounds: RowPiece[][] = [
+        [{ name: "ch", count: 1, marking: "red" }, ch(4)],
+        [{ name: "sc", count: 1, in_name: "red+1" }, { name: "sc", count: 1, in_name: "red + 2" }, { name: "sc", count: 1, in_name: "red-1" }]
+    ];
+    const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
+
+    expect(stitches[0].marking).toBe("red");
+    // red is index 0
+    // red+1 should be index 1
+    // red+2 should be index 2
+    // red-1 should be index -1 (which becomes undefined/empty below in current logic)
+
+    expect(stitches[5].below[0].id).toBe(1);
+    expect(stitches[6].below[0].id).toBe(2);
+    expect(stitches[7].below.length).toBe(0);
+});
+
+test("crochet with hook marker", () => {
+    const rounds: RowPiece[][] = [
+        [ch(5)],
+        [{ name: "sc", count: 1, in_name: "hook-1" }, { name: "sc", count: 1, in_name: "hook" }]
+    ];
+    const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
+
+    // Stitches 0-4 are ch
+    // Stitch 5 is sc in hook-1. 
+    // At the time stitch 5 is being added, total_stitches is 5.
+    // hook is total_stitches - 1 = 4.
+    // hook-1 is 3.
+    expect(stitches[5].below[0].id).toBe(3);
+
+    // Stitch 6 is sc in hook.
+    // At the time stitch 6 is being added, total_stitches is 6.
+    // hook is 5.
+    expect(stitches[6].below[0].id).toBe(5);
+});
+
+test("crochet resolve_in_name bounds checking", () => {
+    const rounds: RowPiece[][] = [
+        [ch(2)],
+        [{ name: "sc", count: 1, in_name: "hook+1" }]
+    ];
+    const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
+
+    // Stitch 2 is sc in hook+1.
+    // At the time, total_stitches is 2. hook is 1. hook+1 is 2.
+    // 2 is not < total_stitches (which is 2). Should return undefined.
+    expect(stitches[2].below.length).toBe(0);
+});
+
 test("crochet increase (2 sc in same st)", () => {
     const rounds: RowPiece[][] = [
         [ch(1)],

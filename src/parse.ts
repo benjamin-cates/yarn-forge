@@ -70,7 +70,7 @@ export function make_line_parser() {
                 r.PreMultiply,
                 stitch_names_parser,
                 r.PostMultiply,
-                P.string("#").then(P.regexp(/[a-zA-Z0-9+_]+/)).fallback(""),
+                P.string("#").then(P.regexp(/[a-zA-Z0-9_]+/)).fallback(""),
                 r.Suffixes,
             ).map(([count1, name, count2, hash_mark, suffixes]) => {
                 const count = count1 * count2;
@@ -95,18 +95,14 @@ export function make_line_parser() {
         Suffixes: function () {
             return P.seq(
                 P.alt(P.string("together"), P.string("tog")).trim(P.optWhitespace).fallback(""),
-                P.string("in").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_ ]+/)).fallback(""),
-                P.string("mark").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_ ]+/)).fallback(""),
-            ).map(([tog, in_name, mark_name]) => {
+                P.string("in").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_\- ]+/)).fallback(""),
+            ).map(([tog, in_name]) => {
                 let item = { count: 1 } as RowPiece;
                 if (tog === "together" || tog === "tog") {
                     item.together = true;
                 }
                 if (in_name.length != 0) {
                     item.in_name = in_name.trim();
-                }
-                if (mark_name.length != 0) {
-                    item.marking = mark_name.trim();
                 }
                 return item;
             });
@@ -116,7 +112,7 @@ export function make_line_parser() {
                 r.PreMultiply,
                 P.string("(").then(r.ItemList).skip(P.string(")")),
                 r.PostMultiply,
-                P.string("#").then(P.regexp(/[a-zA-Z0-9+_]+/)).fallback(""),
+                P.string("#").then(P.regexp(/[a-zA-Z0-9_]+/)).fallback(""),
                 r.Suffixes,
             ).map(([count1, pieces, count2, hash_mark, suffixes]) => {
                 let item: RowPiece = { ...suffixes, pieces, count: count1 * count2 };

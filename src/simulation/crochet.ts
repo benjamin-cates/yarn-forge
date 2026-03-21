@@ -105,16 +105,30 @@ export function placeStitchesAnalytically(stitches: SimStitch[], row_ids: number
         z = nextZ;
     }
 }
-const resolve_in_name = (in_name: string, prev_row: number[], markings: { [key: string]: number }): number | undefined => {
+const resolve_in_name = (in_name: string, prev_row: number[], markings: { [key: string]: number }, total_stitches: number): number | undefined => {
     if (in_name === "next") return prev_row.shift();
     if (in_name === "same st" || in_name === "same") return prev_row.shift();
     if (markings[in_name] !== undefined) return markings[in_name];
-    if (in_name.includes("+")) {
-        const [name, offset] = in_name.split("+");
-        if (markings[name.trim()] !== undefined) {
-            return markings[name.trim()] + parseInt(offset);
+
+    const match = in_name.match(/^(.+?)\s*([+-])\s*(\d+)$/);
+    let result: number | undefined = undefined;
+    if (match) {
+        const [, name, op, offsetStr] = match;
+        const trimmed_name = name.trim();
+        const base = trimmed_name === "hook" ? total_stitches - 1 : markings[trimmed_name];
+        if (base !== undefined) {
+            const offset = parseInt(offsetStr, 10);
+            result = op === "+" ? base + offset : base - offset;
         }
+    } else if (in_name === "hook") {
+        result = total_stitches - 1;
     }
+
+    if (result !== undefined) {
+        if (result < 0 || result >= total_stitches) return undefined;
+        return result;
+    }
+
     // Default to next if unknown
     let below = prev_row.shift();
     if (below == -1) return undefined;
@@ -156,7 +170,7 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
     }
 
     if (piece.name === "join" || piece.name === "turn") {
-        let target = piece.in_name ? resolve_in_name(piece.in_name, prev_row, markings) : undefined;
+        let target = piece.in_name ? resolve_in_name(piece.in_name, prev_row, markings, stitches.length) : undefined;
         if (target !== undefined) {
             // Join is a special connection, it doesn't create a new stitch in the physical sense 
             // but connects the current work-in-progress to a previous point.
@@ -184,7 +198,7 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
             stitches.push(stitch);
             next_row.push(stitches.length - 1);
         } else if (piece.in_name) {
-            let below = resolve_in_name(piece.in_name, prev_row, markings);
+            let below = resolve_in_name(piece.in_name, prev_row, markings, stitches.length);
             if (below == undefined) return next_row;
             for (let i = 0; i < piece.count; i++) {
                 for (let j = 0; j < piece.pieces.length; j++) {
@@ -219,7 +233,7 @@ const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[],
             next_row.push(stitches.length - 1);
             handleMarking(stitches.length - 1);
         } else if (piece.in_name) {
-            let below = resolve_in_name(piece.in_name, prev_row, markings);
+            let below = resolve_in_name(piece.in_name, prev_row, markings, stitches.length);
             for (let i = 0; i < piece.count; i++) {
                 stitches.push({
                     id: stitches.length,

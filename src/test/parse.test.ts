@@ -38,8 +38,7 @@ test("suffixes", () => {
     parse_test(parser, "(3sc,dc) together", { together: true, count: 1, pieces: [stitch("sc", 3), stitch("dc")] });
     parse_test(parser, "(3sc,dc) * 3", { count: 3, pieces: [stitch("sc", 3), stitch("dc")] });
     parse_test(parser, "(3sc,dc) * 150 together", { together: true, count: 150, pieces: [stitch("sc", 3), stitch("dc")] });
-    parse_test(parser, "sc3 mark red", { marking: "red", count: 3, name: "sc" });
-    parse_test(parser, "sc3 mark same st", { marking: "same st", count: 3, name: "sc" });
+    parse_test(parser, "sc3#red", { marking: "red", count: 3, name: "sc" });
 });
 
 test("stitch counts", () => {
@@ -85,6 +84,11 @@ test("marks and complex aliases", () => {
     expect(res2[1].count).equals(5);
     expect(res2[2].name).equals("join");
     expect(res2[2].in_name).equals("start");
+
+    let res3 = ItemList.tryParse("sc#red, join in red-2, sc in start+1");
+    expect(res3[0].marking).equals("red");
+    expect(res3[1].in_name).equals("red-2");
+    expect(res3[2].in_name).equals("start+1");
 });
 
 test("together", () => {
