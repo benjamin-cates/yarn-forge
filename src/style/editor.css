@@ -1,0 +1,202 @@
+.editor-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #222;
+  color: #fff;
+  min-height: 0;
+}
+
+.editor-top-panel {
+  padding: 16px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.editor-title {
+  margin: 0;
+}
+
+.editor-options {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-option-label {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.color-pickers {
+  display: flex;
+  gap: 8px;
+}
+
+.color-picker-wrapper {
+  flex: 1;
+}
+
+.color-picker-input {
+  width: 100%;
+  height: 30px;
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.editor-main {
+  flex: 1;
+  padding: 16px;
+  padding-top: 0;
+  box-sizing: border-box;
+  background: #222;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+.editor-relative-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 16px;
+  line-height: 1.4em;
+  padding: 8px 8px 8px 48px;
+  color: #fff;
+  border: 1px solid transparent;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.editor-line {
+  min-height: 1.4em;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+  white-space: pre-wrap;
+}
+
+.editor-line.error {
+  color: #ff5555 !important;
+}
+
+.editor-linenumber {
+  position: absolute;
+  left: -40px;
+  width: 32px;
+  text-align: right;
+  color: #666;
+  font-size: 12px;
+  user-select: none;
+  line-height: 1.4em;
+  padding-top: 1px;
+}
+
+.editor-line-text {
+  flex: 1;
+}
+
+.editor-validation-container {
+  display: flex;
+  align-items: center;
+  height: 1.4em;
+  flex-shrink: 0;
+}
+
+.editor-validation-error {
+  background: #ffaa00;
+  color: #000;
+  font-size: 11px;
+  padding: 0px 6px;
+  line-height: 1.2em;
+  border-radius: 4px;
+  font-weight: bold;
+  margin-left: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  position: absolute;
+  left: calc(100% + 5px);
+  z-index: 100;
+}
+
+.editor-stitch-count {
+  font-size: 12px;
+  color: #888;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+.editor-textarea {
+  width: 100%;
+  height: 100%;
+  background: #111;
+  color: transparent;
+  caret-color: #fff;
+  font-family: monospace;
+  font-size: 16px;
+  line-height: 1.4em;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 8px 8px 8px 48px;
+  box-sizing: border-box;
+  outline: none;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  position: relative;
+  z-index: 2;
+}
+
+.render-button-container {
+  padding: 12px 0;
+  display: flex;
+  justify-content: center;
+  background: #222;
+  border-top: 1px solid #444;
+  z-index: 101;
+}
+
+.render-button {
+  padding: 8px 24px;
+  font-size: 16px;
+  font-weight: bold;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.2s;
+}
+
+.render-button.has-changes {
+  background-color: #4caf50;
+}
+
+.render-button.has-changes:hover {
+  background-color: #45a049;
+}
+
+.render-button:not(.has-changes) {
+  background-color: #555;
+}
