@@ -20,8 +20,10 @@ export class Crochet {
     markings: { [key: string]: number } = {};
     is_reversed: boolean[] = [];
     row_indices: number[] = [];
+    pattern: Row[];
 
     constructor(rows: Row[], options: { autoJoin: boolean, autoTurn: boolean }) {
+        this.pattern = rows;
         if (rows.length === 0) return;
 
         let current_reversed = false;
@@ -67,7 +69,7 @@ export class Crochet {
             let prevCount = i === 0 ? count : this.row_indices[i] - this.row_indices[i - 1];
             let nextZ = z;
 
-            if (autoJoin) {
+            if (autoJoin || this.pattern[i].join) {
                 if (i > 0) {
                     let dz = Math.abs(count - prevCount) / 6;
                     nextZ = z + Math.max(0, Math.min(1, 1 - dz)) + 0.1;
@@ -198,9 +200,8 @@ export class Crochet {
         if (piece.together) {
             while (next_row.length > 1) {
                 this.stitches[next_row[0]].below.push(...this.stitches.pop()!.below);
-                next_row.pop()
+                next_row.pop();
             }
-            //next_row = [this.stitches.length - 1];
         }
         if (piece.in_name) {
             this.prev_row = old_prev_row;
