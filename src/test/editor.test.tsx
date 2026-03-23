@@ -119,7 +119,7 @@ describe('Editor Component', () => {
         render(<Editor {...mockProps} errors={errors} />);
 
         const lineSpan = screen.getByText('6sc').parentElement;
-        expect(lineSpan).toHaveStyle('color: #ff5555');
+        expect(lineSpan).toHaveClass('error');
     });
 
     it('hides render button when needsManualRender is false', () => {

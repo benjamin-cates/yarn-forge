@@ -70,7 +70,7 @@ test("crochet with autoTurn", () => {
 test("crochet with marking and resolve_in_name", () => {
     const rounds: PatternPiece[][] = [
         [{ name: "ch", count: 1, marking: "start" }, ch(2)],
-        [{ name: "sc", count: 1, in_name: "start" }]
+        [{ name: "sc", count: 1, in_name: { begin: { base: "start" } } }]
     ];
     const [stitches, _row_indices, _is_reversed] = crochet(rounds, { autoJoin: false, autoTurn: false });
 
@@ -82,7 +82,11 @@ test("crochet with marking and resolve_in_name", () => {
 test("crochet with calculated marking offsets", () => {
     const rounds: PatternPiece[][] = [
         [{ name: "ch", count: 1, marking: "red" }, ch(4)],
-        [{ name: "sc", count: 1, in_name: "red+1" }, { name: "sc", count: 1, in_name: "red + 2" }, { name: "sc", count: 1, in_name: "red-1" }]
+        [
+            { name: "sc", count: 1, in_name: { begin: { base: "red", offset: 1 } } },
+            { name: "sc", count: 1, in_name: { begin: { base: "red", offset: 2 } } },
+            { name: "sc", count: 1, in_name: { begin: { base: "red", offset: -1 } } }
+        ]
     ];
     const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
 
@@ -100,7 +104,10 @@ test("crochet with calculated marking offsets", () => {
 test("crochet with hook marker", () => {
     const rounds: PatternPiece[][] = [
         [ch(5)],
-        [{ name: "sc", count: 1, in_name: "hook-1" }, { name: "sc", count: 1, in_name: "hook" }]
+        [
+            { name: "sc", count: 1, in_name: { begin: { base: "hook", offset: -1 } } },
+            { name: "sc", count: 1, in_name: { begin: { base: "hook" } } }
+        ]
     ];
     const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
 
@@ -120,7 +127,7 @@ test("crochet with hook marker", () => {
 test("crochet resolve_in_name bounds checking", () => {
     const rounds: PatternPiece[][] = [
         [ch(2)],
-        [{ name: "sc", count: 1, in_name: "hook+1" }]
+        [{ name: "sc", count: 1, in_name: { begin: { base: "hook", offset: 1 } } }]
     ];
     const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
 
@@ -133,7 +140,7 @@ test("crochet resolve_in_name bounds checking", () => {
 test("crochet increase (2 sc in same st)", () => {
     const rounds: PatternPiece[][] = [
         [ch(1)],
-        [{ name: "sc", count: 2, in_name: "next" }]
+        [{ name: "sc", count: 2, in_name: { begin: { base: "next" } } }]
     ];
     // "next" resolve_in_name will shift from prev_row
     const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
@@ -185,10 +192,10 @@ test("robustness: empty round within rounds", () => {
 test("robustness: referencing non-existent markings", () => {
     const rounds: PatternPiece[][] = [
         [ch(2)],
-        [{ name: "sc", count: 1, in_name: "non-existent" }]
+        [{ name: "sc", count: 1, in_name: { begin: { base: "non-existent" } } }]
     ];
     const [stitches] = crochet(rounds, { autoJoin: false, autoTurn: false });
-    expect(stitches[2].below[0].id).toBe(0);
+    expect(stitches[2].below.length).toBe(0);
 });
 
 test("robustness: consuming more than available in prev_row", () => {
@@ -208,7 +215,7 @@ test("integrity: ids within bounds", () => {
     const rounds: PatternPiece[][] = [
         [ch(10)],
         [sc(5), { name: "sc", count: 2, together: true }, sk(1), sc(2)],
-        [{ name: "sc", count: 1, in_name: "non-existent" }, sc(10)]
+        [{ name: "sc", count: 1, in_name: { begin: { base: "non-existent" } } }, sc(10)]
     ];
     const [stitches] = crochet(rounds, { autoJoin: true, autoTurn: true });
 

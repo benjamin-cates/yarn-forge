@@ -18,8 +18,8 @@ describe("generateCirclePattern", () => {
         const { rows, validation } = parseRows(pattern);
 
         for (let i = 1; i < rows.length; i++) {
-            const currentInput = calculateInputStitches(rows[i]);
-            const prevOutput = calculateOutputStitches(rows[i - 1]);
+            const currentInput = calculateInputStitches(rows[i].pieces);
+            const prevOutput = calculateOutputStitches(rows[i - 1].pieces);
 
             expect(currentInput).toBe(prevOutput);
             expect(validation[i].isValid).toBe(true);
@@ -45,8 +45,8 @@ describe('generateSpherePattern', () => {
         // First row (the ring) is special, it doesn't have a previous row to match against
         // But subsequent rows should have their input stitches equal to the previous row's output stitches
         for (let i = 1; i < rows.length; i++) {
-            const currentInput = calculateInputStitches(rows[i]);
-            const prevOutput = calculateOutputStitches(rows[i - 1]);
+            const currentInput = calculateInputStitches(rows[i].pieces);
+            const prevOutput = calculateOutputStitches(rows[i - 1].pieces);
 
             expect(currentInput).toBe(prevOutput);
             expect(validation[i].isValid).toBe(true);
@@ -60,8 +60,8 @@ describe('generateSpherePattern', () => {
             const { rows, validation } = parseRows(pattern);
 
             for (let i = 1; i < rows.length; i++) {
-                const currentInput = calculateInputStitches(rows[i]);
-                const prevOutput = calculateOutputStitches(rows[i - 1]);
+                const currentInput = calculateInputStitches(rows[i].pieces);
+                const prevOutput = calculateOutputStitches(rows[i - 1].pieces);
                 expect(currentInput).toBe(prevOutput);
                 expect(validation[i].isValid).toBe(true);
             }

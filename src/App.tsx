@@ -117,14 +117,12 @@ function App() {
 
   useEffect(() => {
     if (!needsManualRender) {
-      console.log("App: Syncing lastRendered because !needsManualRender");
       setLastRenderedPattern(prev => (JSON.stringify(prev) === JSON.stringify(finalRows) ? prev : finalRows));
       setLastRenderedPhys(prev => (JSON.stringify(prev) === JSON.stringify(phys) ? prev : phys));
     }
   }, [finalRows, phys, needsManualRender]);
 
   const handleRender = useCallback((patternOverride?: Row[], physOverride?: PhysConfig) => {
-    console.log("App: Manually rendering");
     const pattern = patternOverride ?? finalRows;
     const p = physOverride ?? phys;
     setLastRenderedPattern(prev => (JSON.stringify(prev) === JSON.stringify(pattern) ? prev : pattern));

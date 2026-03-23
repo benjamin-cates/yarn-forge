@@ -1,4 +1,4 @@
-import type { PatternPiece, Row } from "../parse";
+import type { Location, LocationRange, PatternPiece, Row } from "../parse";
 import { mulberry32 } from "../util";
 import type { SimStitch } from "./phys";
 import * as THREE from "three";
@@ -104,34 +104,34 @@ export class Crochet {
         }
     }
 
-    private resolve_in_name(in_name: string): number | undefined {
-        if (in_name === "next") return this.prev_row.shift();
-        if (in_name === "same st" || in_name === "same") return this.prev_row.shift();
-        if (this.markings[in_name] !== undefined) return this.markings[in_name];
+    private resolve_location(loc: Location): number | undefined {
+        const { base, row, offset = 0 } = loc;
 
-        const match = in_name.match(/^(.+?)\s*([+-])\s*(\d+)$/);
-        let result: number | undefined = undefined;
-        if (match) {
-            const [, name, op, offsetStr] = match;
-            const trimmed_name = name.trim();
-            const base = trimmed_name === "hook" ? this.stitches.length - 1 : this.markings[trimmed_name];
-            if (base !== undefined) {
-                const offset = parseInt(offsetStr, 10);
-                result = op === "+" ? base + offset : base - offset;
-            }
-        } else if (in_name === "hook") {
-            result = this.stitches.length - 1;
+        if (base === "next" || base === "same" || base === "same st") {
+            return this.prev_row.shift();
         }
 
-        if (result !== undefined) {
-            if (result < 0 || result >= this.stitches.length) return undefined;
-            return result;
+        let base_idx: number | undefined;
+        if (base === "hook") {
+            base_idx = this.stitches.length - 1;
+        } else if (row !== undefined) {
+            // base is piece name, look up by row
+            // For now, we only have one piece, so row_indices refers to that piece
+            base_idx = this.row_indices[row];
+        } else if (this.markings[base] !== undefined) {
+            base_idx = this.markings[base];
         }
 
-        // Default to next if unknown
-        let below = this.prev_row.shift();
-        if (below == -1) return undefined;
-        return below;
+        if (base_idx !== undefined) {
+            let res = base_idx + offset;
+            if (res >= 0 && res < this.stitches.length) return res;
+        }
+
+        return undefined;
+    }
+
+    private resolve_in_name(range: LocationRange): number | undefined {
+        return this.resolve_location(range.begin);
     }
 
     public add_crochet(piece: PatternPiece): number[] {

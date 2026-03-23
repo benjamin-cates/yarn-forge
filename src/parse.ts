@@ -3,7 +3,7 @@ import * as P from "parsimmon";
 export const STITCH_LIST = ["sc", "hdc", "dc", "htc", "tc", "ch", "sk"];
 
 export const ALIAS_MAP: Record<string, PatternPiece[]> = {
-    "inc": [{ count: 2, name: "sc", in_name: "next" }],
+    "inc": [{ count: 2, name: "sc", in_name: { begin: { base: "next" } } }],
     "dec": [{ count: 2, name: "sc", together: true }],
 };
 
@@ -33,13 +33,31 @@ export interface RowValidation {
     expectedInput?: number;
 }
 
+// Representation of a marker or location within a piece
+// Can either be "piece_name[row]+offset" or "marker+offset"
+export interface Location {
+    // The base name of a location
+    base: string,
+    // The offset in stitch ids. For example: start-2 has offset of -2
+    // Offset is optional and defaults to undefined instead of zero.
+    offset?: number,
+    // The row of the location. If base is the name of a piece, then base[row]+offset will point to the offset'th stitch in row. If base is a marker, then this is meaningless.
+    row?: number,
+}
 
+// A range between two locations.
+// Represented as "begin:end" in text, where begin and end are both representations of Location.
+// If end is ommitted, then "begin" is the representation and the range only holds one stitch.
+export interface LocationRange {
+    begin: Location,
+    end?: Location,
+}
 
 export interface PatternPiece {
     count: number,
     name?: string,
     together?: boolean,
-    in_name?: string,
+    in_name?: LocationRange,
     pieces?: PatternPiece[],
     marking?: string,
 }
@@ -59,7 +77,9 @@ export function make_parser() {
         List: PatternPiece,
         Any: PatternPiece | PatternPiece[],
         Row: Row,
-        ItemList: PatternPiece[]
+        ItemList: PatternPiece[],
+        Location: Location,
+        LocationRange: LocationRange,
     }>({
         PreMultiply: function () {
             return P.digits.skip(P.oneOf("x*").fallback(null).trim(P.optWhitespace)).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1).fallback(1);
@@ -100,24 +120,43 @@ export function make_parser() {
                 return item;
             }) as P.Parser<PatternPiece | PatternPiece[]>;
         },
-        Suffixes: function () {
+        Location: function () {
+            return P.seq(
+                P.regexp(/[a-zA-Z0-9_]+/),
+                P.string("[").then(P.digits).skip(P.string("]")).map(Number).fallback(undefined),
+                P.seq(P.alt(P.string("+"), P.string("-")), P.digits).map(([sign, v]) => parseInt(sign + v)).fallback(undefined)
+            ).map(([base, row, offset]) => {
+                let res: Location = { base };
+                if (row !== undefined) res.row = row;
+                if (offset !== undefined) res.offset = offset;
+                return res;
+            });
+        },
+        LocationRange: function (r) {
+            return P.seq(
+                r.Location,
+                P.string(":").then(r.Location).fallback(undefined)
+            ).map(([begin, end]) => {
+                return { begin, end };
+            });
+        },
+        Suffixes: function (r) {
             return P.seq(
                 P.alt(P.string("together"), P.string("tog")).trim(P.optWhitespace).fallback(""),
-                P.string("in").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_\- ]+/)).fallback(""),
-            ).map(([tog, in_name]) => {
+                P.string("in").trim(P.optWhitespace).then(r.LocationRange).fallback(undefined),
+            ).map(([tog, in_range]) => {
                 let item = { count: 1 } as PatternPiece;
                 if (tog === "together" || tog === "tog") {
                     item.together = true;
                 }
-                if (in_name.length != 0) {
-                    item.in_name = in_name.trim();
+                if (in_range) {
+                    item.in_name = in_range;
                 }
                 return item;
             });
         },
         Row: function (r) {
             return P.seq(r.ItemList, P.string(",").trim(P.optWhitespace).then(P.alt(P.string("turn"), P.string("join"))).fallback(null).trim(P.optWhitespace)).map(([pieces, jointurn]) => {
-                console.log(jointurn);
                 return { pieces, join: jointurn == "join" ? true : undefined, turn: jointurn == "turn" ? true : undefined } satisfies Row;
             });
 
