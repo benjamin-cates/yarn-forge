@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { make_line_parser, STITCH_LIST, calculateInputStitches, calculateOutputStitches } from "../parse";
+import { make_parser, STITCH_LIST, calculateInputStitches, calculateOutputStitches } from "../parse";
 import type { Parser } from "parsimmon";
 
 const stitch = (name: string, count: number = 1) => ({ name, count });
@@ -8,10 +8,10 @@ function parse_test<T>(parser: Parser<T>, text: string, output: T) {
 }
 
 test("basic stitches", () => {
-    let parser = make_line_parser().Any;
-    expect(make_line_parser().PreMultiply.parse("2")).deep.equal({ status: true, value: 2 });
-    expect(make_line_parser().PreMultiply.parse("3*")).deep.equal({ status: true, value: 3 });
-    expect(make_line_parser().Any.parse("sc x3")).deep.equal({ status: true, value: { count: 3, name: "sc" } });
+    let parser = make_parser().Any;
+    expect(make_parser().PreMultiply.parse("2")).deep.equal({ status: true, value: 2 });
+    expect(make_parser().PreMultiply.parse("3*")).deep.equal({ status: true, value: 3 });
+    expect(make_parser().Any.parse("sc x3")).deep.equal({ status: true, value: { count: 3, name: "sc" } });
     for (let stitch of STITCH_LIST) {
         for (let count = 1; count < 110; count++) {
             let types = [
@@ -32,7 +32,7 @@ test("basic stitches", () => {
 
 
 test("suffixes", () => {
-    let parser = make_line_parser().Any;
+    let parser = make_parser().Any;
     parse_test(parser, "sc3together", { together: true, count: 3, name: "sc" });
     parse_test(parser, "3sc in same", { in_name: "same", count: 3, name: "sc" });
     parse_test(parser, "(3sc,dc) together", { together: true, count: 1, pieces: [stitch("sc", 3), stitch("dc")] });
@@ -42,7 +42,7 @@ test("suffixes", () => {
 });
 
 test("stitch counts", () => {
-    const { ItemList } = make_line_parser();
+    const { ItemList } = make_parser();
     const calculate = (text: string) => {
         const row = ItemList.tryParse(text);
         return {
@@ -71,7 +71,7 @@ test("stitch counts", () => {
 });
 
 test("marks and complex aliases", () => {
-    const { ItemList } = make_line_parser();
+    const { ItemList } = make_parser();
 
     let res = ItemList.tryParse("sc#red, 2inc, dec#blue");
     expect(res[0].marking).equals("red");

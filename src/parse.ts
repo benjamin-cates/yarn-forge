@@ -1,8 +1,8 @@
 import * as P from "parsimmon";
 
-export const STITCH_LIST = ["sc", "hdc", "dc", "htc", "tc", "ch", "sk", "join", "turn"];
+export const STITCH_LIST = ["sc", "hdc", "dc", "htc", "tc", "ch", "sk"];
 
-export const ALIAS_MAP: Record<string, RowPiece[]> = {
+export const ALIAS_MAP: Record<string, PatternPiece[]> = {
     "inc": [{ count: 2, name: "sc", in_name: "next" }],
     "dec": [{ count: 2, name: "sc", together: true }],
 };
@@ -35,23 +35,31 @@ export interface RowValidation {
 
 
 
-export interface RowPiece {
+export interface PatternPiece {
     count: number,
     name?: string,
     together?: boolean,
     in_name?: string,
-    pieces?: RowPiece[],
+    pieces?: PatternPiece[],
     marking?: string,
 }
-export function make_line_parser() {
+
+export interface Row {
+    pieces: PatternPiece[];
+    join?: boolean;
+    turn?: boolean;
+}
+
+export function make_parser() {
     return P.createLanguage<{
         PreMultiply: number,
         PostMultiply: number,
-        Stitch: RowPiece | RowPiece[],
-        Suffixes: RowPiece,
-        List: RowPiece,
-        Any: RowPiece | RowPiece[],
-        ItemList: RowPiece[]
+        Stitch: PatternPiece | PatternPiece[],
+        Suffixes: PatternPiece,
+        List: PatternPiece,
+        Any: PatternPiece | PatternPiece[],
+        Row: Row,
+        ItemList: PatternPiece[]
     }>({
         PreMultiply: function () {
             return P.digits.skip(P.oneOf("x*").fallback(null).trim(P.optWhitespace)).assert(v => (v != "0"), "Multiplier cannot be zero").map(v => Number(v) || 1).fallback(1);
@@ -77,7 +85,7 @@ export function make_line_parser() {
                 if (ALIAS_MAP[name]) {
                     // For aliases, we replicate the alias content 'count' times
                     let base = ALIAS_MAP[name];
-                    let result: RowPiece[] = [];
+                    let result: PatternPiece[] = [];
                     for (let i = 0; i < count; i++) {
                         result.push(...JSON.parse(JSON.stringify(base)));
                     }
@@ -87,17 +95,17 @@ export function make_line_parser() {
                     if (suffixes.marking) result[result.length - 1].marking = suffixes.marking;
                     return result;
                 }
-                let item: RowPiece = { ...suffixes, name, count };
+                let item: PatternPiece = { ...suffixes, name, count };
                 if (hash_mark) item.marking = hash_mark;
                 return item;
-            }) as P.Parser<RowPiece | RowPiece[]>;
+            }) as P.Parser<PatternPiece | PatternPiece[]>;
         },
         Suffixes: function () {
             return P.seq(
                 P.alt(P.string("together"), P.string("tog")).trim(P.optWhitespace).fallback(""),
                 P.string("in").trim(P.optWhitespace).then(P.regexp(/[a-zA-Z0-9+_\- ]+/)).fallback(""),
             ).map(([tog, in_name]) => {
-                let item = { count: 1 } as RowPiece;
+                let item = { count: 1 } as PatternPiece;
                 if (tog === "together" || tog === "tog") {
                     item.together = true;
                 }
@@ -107,6 +115,13 @@ export function make_line_parser() {
                 return item;
             });
         },
+        Row: function (r) {
+            return P.seq(r.ItemList, P.string(",").trim(P.optWhitespace).then(P.alt(P.string("turn"), P.string("join"))).fallback(null).trim(P.optWhitespace)).map(([pieces, jointurn]) => {
+                console.log(jointurn);
+                return { pieces, join: jointurn == "join" ? true : undefined, turn: jointurn == "turn" ? true : undefined } satisfies Row;
+            });
+
+        },
         List: function (r) {
             return P.seq(
                 r.PreMultiply,
@@ -115,17 +130,17 @@ export function make_line_parser() {
                 P.string("#").then(P.regexp(/[a-zA-Z0-9_]+/)).fallback(""),
                 r.Suffixes,
             ).map(([count1, pieces, count2, hash_mark, suffixes]) => {
-                let item: RowPiece = { ...suffixes, pieces, count: count1 * count2 };
+                let item: PatternPiece = { ...suffixes, pieces, count: count1 * count2 };
                 if (hash_mark) item.marking = hash_mark;
                 return item;
-            }) as P.Parser<RowPiece>;
+            }) as P.Parser<PatternPiece>;
         },
         Any: function (r) {
             return P.alt(r.List, r.Stitch);
         },
         ItemList: function (r) {
             return r.Any.sepBy(P.string(",").trim(P.optWhitespace)).map(items => {
-                let result: RowPiece[] = [];
+                let result: PatternPiece[] = [];
                 for (let item of items) {
                     if (Array.isArray(item)) {
                         result.push(...item);
@@ -139,8 +154,8 @@ export function make_line_parser() {
     })
 }
 
-export function parseRows(text: string): { rows: RowPiece[][], errors: boolean[], validation: RowValidation[] } {
-    const parser = make_line_parser();
+export function parseRows(text: string): { rows: Row[], errors: boolean[], validation: RowValidation[] } {
+    const parser = make_parser();
     const lines = text.split("\n");
     const errors: boolean[] = [];
     const rows = lines
@@ -148,22 +163,22 @@ export function parseRows(text: string): { rows: RowPiece[][], errors: boolean[]
         .map((line, i) => {
             if (line.length === 0) {
                 errors[i] = false;
-                return [];
+                return { pieces: [] };
             }
             try {
                 // Each line is a row: parse as ItemList
-                const res = parser.ItemList.tryParse(line);
+                const res = parser.Row.tryParse(line);
                 errors[i] = false;
                 return res;
             } catch (e) {
                 errors[i] = true;
-                return [];
+                return { pieces: [] };
             }
         });
 
     const validation: RowValidation[] = rows.map((row, i) => {
-        const inputStitches = calculateInputStitches(row);
-        const outputStitches = calculateOutputStitches(row);
+        const inputStitches = calculateInputStitches(row.pieces);
+        const outputStitches = calculateOutputStitches(row.pieces);
         let isValid = true;
         let expectedInput: number | undefined = undefined;
 
@@ -172,13 +187,13 @@ export function parseRows(text: string): { rows: RowPiece[][], errors: boolean[]
         if (i > 0) {
             // Find the last non-empty row to get expected input
             for (let j = i - 1; j >= 0; j--) {
-                if (rows[j].length > 0 && !errors[j]) {
-                    expectedInput = calculateOutputStitches(rows[j]);
+                if (rows[j].pieces.length > 0 && !errors[j]) {
+                    expectedInput = calculateOutputStitches(rows[j].pieces);
                     break;
                 }
             }
 
-            if (expectedInput !== undefined && row.length > 0 && !errors[i]) {
+            if (expectedInput !== undefined && row.pieces.length > 0 && !errors[i]) {
                 isValid = inputStitches === expectedInput;
             }
         }
@@ -189,7 +204,7 @@ export function parseRows(text: string): { rows: RowPiece[][], errors: boolean[]
     return { rows, errors, validation };
 }
 
-export function calculateInputStitches(pieces: RowPiece[]): number {
+export function calculateInputStitches(pieces: PatternPiece[]): number {
     let inputStitches = 0;
     for (const piece of pieces) {
         if (piece.name === "ch") {
@@ -219,7 +234,7 @@ export function calculateInputStitches(pieces: RowPiece[]): number {
     return inputStitches;
 }
 
-export function calculateOutputStitches(pieces: RowPiece[]): number {
+export function calculateOutputStitches(pieces: PatternPiece[]): number {
     let outputStitches = 0;
     for (const piece of pieces) {
         if (piece.name === "sk") {

@@ -7,28 +7,28 @@ import About from './elements/About';
 import { CrochetItem } from "./elements/CrochetItem";
 import { PhysicsConfig } from "./elements/PhysicsConfig";
 import { HeatmapIndex } from "./simulation/experimental";
-import { calculateInputStitches, calculateOutputStitches, type RowPiece, parseRows } from "./parse";
+import { calculateInputStitches, calculateOutputStitches, parseRows, type Row } from "./parse";
 import type { PhysConfig } from "./simulation/phys";
 
 type Page = 'editor' | 'docs' | 'examples' | 'about';
 
-function getFinalRows(rows: RowPiece[][], errors: any[]): RowPiece[][] {
+function getFinalRows(rows: Row[], errors: any[]): Row[] {
   let currentRowLength = 1000;
-  const result: RowPiece[][] = [];
+  const result: Row[] = [];
   for (let i = 0; i < rows.length; i++) {
     if (errors[i]) {
       break;
     }
-    if (rows[i].length === 0) {
-      result.push([]);
+    if (rows[i].pieces.length === 0) {
+      result.push({ pieces: [] });
       continue;
     }
-    const required = calculateInputStitches(rows[i]);
+    const required = calculateInputStitches(rows[i].pieces);
     if (required > currentRowLength) {
       break;
     }
     result.push(rows[i]);
-    currentRowLength = calculateOutputStitches(rows[i]);
+    currentRowLength = calculateOutputStitches(rows[i].pieces);
   }
   return result;
 }
@@ -112,7 +112,7 @@ function App() {
   const finalRows = useMemo(() => getFinalRows(rows, errors), [rows, errors]);
 
   const needsManualRender = totalStitches > 280;
-  const [lastRenderedPattern, setLastRenderedPattern] = useState<RowPiece[][]>(finalRows);
+  const [lastRenderedPattern, setLastRenderedPattern] = useState<Row[]>(finalRows);
   const [lastRenderedPhys, setLastRenderedPhys] = useState<PhysConfig>(phys);
 
   useEffect(() => {
@@ -123,7 +123,7 @@ function App() {
     }
   }, [finalRows, phys, needsManualRender]);
 
-  const handleRender = useCallback((patternOverride?: RowPiece[][], physOverride?: PhysConfig) => {
+  const handleRender = useCallback((patternOverride?: Row[], physOverride?: PhysConfig) => {
     console.log("App: Manually rendering");
     const pattern = patternOverride ?? finalRows;
     const p = physOverride ?? phys;

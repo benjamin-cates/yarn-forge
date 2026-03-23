@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { type RowPiece } from "../parse";
+import { type Row } from "../parse";
 import { relaxStitchPositions, type PhysConfig } from "../simulation/phys";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Html, Line } from "@react-three/drei";
@@ -9,7 +9,7 @@ import { getLabelColors } from "../util";
 
 
 interface CrochetItemProps {
-    pattern: RowPiece[][],
+    pattern: Row[],
     phys: PhysConfig,
     sphereColor?: string,
     lineColor?: string,

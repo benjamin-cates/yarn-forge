@@ -1,4 +1,4 @@
-import type { RowPiece } from "../parse";
+import type { PatternPiece, Row } from "../parse";
 import { mulberry32 } from "../util";
 import type { SimStitch } from "./phys";
 import * as THREE from "three";
@@ -14,38 +14,38 @@ const STITCH_LENGTHS: { [key: string]: number } = {
     join: 0,
 };
 
-export const crochet = (rounds: RowPiece[][], options: { autoJoin: boolean, autoTurn: boolean }): [SimStitch[], number[], boolean[]] => {
+export const crochet = (rows: Row[], options: { autoJoin: boolean, autoTurn: boolean }): [SimStitch[], number[], boolean[]] => {
     let stitches: SimStitch[] = [];
 
-    if (rounds.length === 0) return [[], [], []];
+    if (rows.length === 0) return [[], [], []];
 
-    let row = Array.from({ length: 1000 }).fill(-1) as number[];
+    let prev_row = Array.from({ length: 1000 }).fill(-1) as number[];
     let row_indices = [];
     let markings: { [key: string]: number } = {};
     let is_reversed: boolean[] = [];
 
     let current_reversed = false;
+    console.log(rows);
 
-    for (let round of rounds) {
-        if (round.length === 0) continue;
+    for (let row of rows) {
+        if (row.pieces.length === 0) continue;
         row_indices.push(stitches.length);
         is_reversed.push(current_reversed);
 
         let next_row = [];
-        for (let piece of round) {
-            next_row.push(...add_crochet(piece, stitches, row, markings));
+        for (let piece of row.pieces) {
+            next_row.push(...add_crochet(piece, stitches, prev_row, markings));
         }
 
-        const containsTurn = round.some(p => p.name === "turn");
-        if (options.autoTurn || containsTurn) {
-            row = next_row.slice().reverse();
+        if (options.autoTurn || row.turn) {
+            prev_row = next_row.slice().reverse();
             current_reversed = !current_reversed;
         } else {
-            row = next_row;
+            prev_row = next_row;
         }
 
         // Add join: connect last stitch to first stitch in this row (standard crochet behavior)
-        if (options.autoJoin && next_row.length > 1) {
+        if ((options.autoJoin || row.join) && next_row.length > 1) {
             let firstStitch = stitches[next_row[0]];
             // Only set prev if it doesn't already have a more specific one (like from a join stitch)
             firstStitch.prev = { id: next_row[next_row.length - 1], dist: 1 };
@@ -135,7 +135,7 @@ const resolve_in_name = (in_name: string, prev_row: number[], markings: { [key: 
     return below
 };
 
-const add_crochet = (piece: RowPiece, stitches: SimStitch[], prev_row: number[], markings: { [key: string]: number }): number[] => {
+const add_crochet = (piece: PatternPiece, stitches: SimStitch[], prev_row: number[], markings: { [key: string]: number }): number[] => {
     let next_row: number[] = [];
 
     const handleMarking = (stitchId: number) => {

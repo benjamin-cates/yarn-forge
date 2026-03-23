@@ -1,13 +1,13 @@
 import { expect, test } from "vitest";
 import { crochet } from "../simulation/crochet";
-import type { RowPiece } from "../parse";
+import type { PatternPiece } from "../parse";
 
-const sc = (count = 1): RowPiece => ({ name: "sc", count });
-const ch = (count = 1): RowPiece => ({ name: "ch", count });
-const sk = (count = 1): RowPiece => ({ name: "sk", count });
+const sc = (count = 1): PatternPiece => ({ name: "sc", count });
+const ch = (count = 1): PatternPiece => ({ name: "ch", count });
+const sk = (count = 1): PatternPiece => ({ name: "sk", count });
 
 test("crochet basic chain", () => {
-    const rounds: RowPiece[][] = [[ch(5)]];
+    const rounds: PatternPiece[][] = [[ch(5)]];
     const [stitches, row_indices, is_reversed] = crochet(rounds, { autoJoin: false, autoTurn: false });
 
     expect(stitches.length).toBe(5);
@@ -25,7 +25,7 @@ test("crochet basic chain", () => {
 });
 
 test("crochet sc on chain", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(5)],
         [sc(5)]
     ];
@@ -44,7 +44,7 @@ test("crochet sc on chain", () => {
 });
 
 test("crochet with autoTurn", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(2)],
         [sc(2)],
         [sc(2)]
@@ -62,7 +62,7 @@ test("crochet with autoTurn", () => {
 });
 
 test("crochet with marking and resolve_in_name", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [{ name: "ch", count: 1, marking: "start" }, ch(2)],
         [{ name: "sc", count: 1, in_name: "start" }]
     ];
@@ -74,7 +74,7 @@ test("crochet with marking and resolve_in_name", () => {
 });
 
 test("crochet with calculated marking offsets", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [{ name: "ch", count: 1, marking: "red" }, ch(4)],
         [{ name: "sc", count: 1, in_name: "red+1" }, { name: "sc", count: 1, in_name: "red + 2" }, { name: "sc", count: 1, in_name: "red-1" }]
     ];
@@ -92,7 +92,7 @@ test("crochet with calculated marking offsets", () => {
 });
 
 test("crochet with hook marker", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(5)],
         [{ name: "sc", count: 1, in_name: "hook-1" }, { name: "sc", count: 1, in_name: "hook" }]
     ];
@@ -112,7 +112,7 @@ test("crochet with hook marker", () => {
 });
 
 test("crochet resolve_in_name bounds checking", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(2)],
         [{ name: "sc", count: 1, in_name: "hook+1" }]
     ];
@@ -125,7 +125,7 @@ test("crochet resolve_in_name bounds checking", () => {
 });
 
 test("crochet increase (2 sc in same st)", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(1)],
         [{ name: "sc", count: 2, in_name: "next" }]
     ];
@@ -138,7 +138,7 @@ test("crochet increase (2 sc in same st)", () => {
 });
 
 test("crochet decrease (sc2together)", () => {
-    const roundsDecrease: RowPiece[][] = [
+    const roundsDecrease: PatternPiece[][] = [
         [ch(2)],
         [{ name: "sc", count: 2, together: true }]
     ];
@@ -151,7 +151,7 @@ test("crochet decrease (sc2together)", () => {
 });
 
 test("crochet skip", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(3)],
         [sc(1), sk(1), sc(1)]
     ];
@@ -170,14 +170,14 @@ test("robustness: empty rounds", () => {
 });
 
 test("robustness: empty round within rounds", () => {
-    const rounds: RowPiece[][] = [[ch(2)], [], [sc(2)]];
+    const rounds: PatternPiece[][] = [[ch(2)], [], [sc(2)]];
     const [stitches, row_indices, _is_reversed] = crochet(rounds, { autoJoin: false, autoTurn: false });
     expect(row_indices.length).toBe(2); // The empty round is skipped in row_indices
     expect(stitches.length).toBe(4);
 });
 
 test("robustness: referencing non-existent markings", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(2)],
         [{ name: "sc", count: 1, in_name: "non-existent" }]
     ];
@@ -186,7 +186,7 @@ test("robustness: referencing non-existent markings", () => {
 });
 
 test("robustness: consuming more than available in prev_row", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(1)],
         [sc(5)]
     ];
@@ -199,7 +199,7 @@ test("robustness: consuming more than available in prev_row", () => {
 });
 
 test("integrity: ids within bounds", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(10)],
         [sc(5), { name: "sc", count: 2, together: true }, sk(1), sc(2)],
         [{ name: "sc", count: 1, in_name: "non-existent" }, sc(10)]
@@ -219,7 +219,7 @@ test("integrity: ids within bounds", () => {
 });
 
 test("integrity: id field matches index", () => {
-    const rounds: RowPiece[][] = [
+    const rounds: PatternPiece[][] = [
         [ch(5)],
         [sc(5)]
     ];
