@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { Crochet } from "../simulation/crochet";
-import type { PatternPiece, Row } from "../parse";
+import { parseRows, type PatternPiece, type Row } from "../parse";
 
 const crochet = (rounds: PatternPiece[][], options: { autoJoin: boolean, autoTurn: boolean }) => {
     const rows: Row[] = rounds.map(r => ({ pieces: r }));
@@ -137,7 +137,7 @@ test("crochet resolve_in_name bounds checking", () => {
     expect(stitches[2].below.length).toBe(0);
 });
 
-test("crochet increase (2 sc in same st)", () => {
+test("crochet increase (2 sc in same)", () => {
     const rounds: PatternPiece[][] = [
         [ch(1)],
         [{ name: "sc", count: 2, in_name: { begin: { base: "next" } } }]
@@ -240,4 +240,41 @@ test("integrity: id field matches index", () => {
     stitches.forEach((s, i) => {
         expect(s.id).toBe(i);
     });
+});
+
+test("crochet from string: 3sc\\n(sc, (sc, sc)) together", () => {
+    const { rows } = parseRows("3sc\n(sc, (sc, sc)) together");
+    const [stitches, row_indices] = crochet(rows.map(r => r.pieces), { autoJoin: false, autoTurn: false });
+
+    expect(stitches.length).toBe(4);
+    expect(row_indices).toEqual([0, 3]);
+
+    const togStitch = stitches[3];
+    expect(togStitch.name).toBe("sc");
+    // (sc, (sc, sc)) consumes 3 stitches because sc consumes 1, and (sc, sc) consumes 2.
+    expect(togStitch.below.length).toBe(3);
+    expect(togStitch.below.map(s => s.id)).toEqual([0, 2, 1]);
+});
+
+test("crochet from string: sc, sc#red, 3sc\\n2sc in red:red+1", () => {
+    const { rows } = parseRows("sc, sc#red, 3sc\n2sc in red:red+1");
+    const [stitches] = crochet(rows.map(r => r.pieces), { autoJoin: false, autoTurn: false });
+
+    expect(stitches[1].marking).toBe("red");
+
+    expect(stitches[5].name).toBe("sc");
+    expect(stitches[5].below.map(s => s.id)).toEqual([1]);
+
+    expect(stitches[6].name).toBe("sc");
+    expect(stitches[6].below.map(s => s.id)).toEqual([2]);
+});
+
+test("crochet complex together and in", () => {
+    const { rows } = parseRows("5sc\n(2sc in next, sc) together");
+    const [stitches] = crochet(rows.map(r => r.pieces), { autoJoin: false, autoTurn: false });
+
+    expect(stitches.length).toBe(6); // 5 + 1
+    const tog = stitches[5];
+    expect(tog.below.length).toBe(3);
+    expect(tog.below.map(s => s.id)).toEqual([0, 1, 0]);
 });

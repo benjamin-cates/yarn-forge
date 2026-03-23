@@ -130,22 +130,22 @@ export class Crochet {
         return undefined;
     }
 
-    private resolve_in_name(range: LocationRange): number | undefined {
-        return this.resolve_location(range.begin);
+    private resolve_range(range: LocationRange): { begin?: number, end?: number } {
+        return { begin: this.resolve_location(range.begin), end: range.end ? this.resolve_location(range.end) : undefined };
+    }
+
+    private addMarking(stitchId: number, piece: PatternPiece) {
+        if (piece.marking) {
+            if (this.markings[piece.marking] !== undefined) {
+                this.stitches[this.markings[piece.marking]].marking = undefined;
+            }
+            this.markings[piece.marking] = stitchId;
+            this.stitches[stitchId].marking = piece.marking;
+        }
     }
 
     public add_crochet(piece: PatternPiece): number[] {
         let next_row: number[] = [];
-
-        const handleMarking = (stitchId: number) => {
-            if (piece.marking) {
-                if (this.markings[piece.marking] !== undefined) {
-                    this.stitches[this.markings[piece.marking]].marking = undefined;
-                }
-                this.markings[piece.marking] = stitchId;
-                this.stitches[stitchId].marking = piece.marking;
-            }
-        };
 
         if (piece.name === "ch") {
             for (let i = 0; i < piece.count; i++) {
@@ -157,105 +157,56 @@ export class Crochet {
                 });
                 next_row.push(this.stitches.length - 1);
             }
-            if (next_row.length > 0) handleMarking(next_row[next_row.length - 1]);
+            if (next_row.length > 0) this.addMarking(next_row[next_row.length - 1], piece);
             return next_row;
         }
-
         if (piece.name === "sk") {
+            for (let i = 0; i < piece.count; i++) this.prev_row.shift();
+            return next_row;
+        }
+
+        let old_prev_row = this.prev_row;
+        if (piece.in_name) {
+            let { begin, end } = this.resolve_range(piece.in_name);
+            if (begin == undefined) this.prev_row = [];
+            else if (end == undefined) {
+                this.prev_row = Array.from({ length: 20 }).map(_ => begin);
+            }
+            else {
+                this.prev_row = Array.from({ length: end - begin + 1 }).map((_, i) => begin + i);
+            }
+        }
+        if (piece.name) {
             for (let i = 0; i < piece.count; i++) {
-                this.prev_row.shift();
-            }
-            return next_row;
-        }
-
-        if (piece.name === "join" || piece.name === "turn") {
-            let target = piece.in_name ? this.resolve_in_name(piece.in_name) : undefined;
-            if (target !== undefined) {
-                // Join is a special connection, it doesn't create a new stitch in the physical sense 
-                // but connects the current work-in-progress to a previous point.
-                // We can represent this by updating the 'prev' of the NEXT stitch or the LAST stitch.
-                if (this.stitches.length > 0) {
-                    this.stitches[this.stitches.length - 1].prev = { id: target, dist: 0.1 };
-                }
-            }
-            return next_row;
-        }
-
-        if (piece.pieces) {
-            if (piece.together) {
-                // Decrease: one stitch, multiple below
-                let stitch = { name: '', id: this.stitches.length, below: [] } as SimStitch;
-                stitch.name = piece.name || (piece.pieces[0]?.name ?? 'sc');
-                stitch.prev = { id: this.stitches.length - 1, dist: 1 };
-                for (let i = 0; i < piece.count; i++) {
-                    for (let j = 0; j < piece.pieces.length; j++) {
-                        const belowId = this.prev_row.shift();
-                        if (belowId == undefined) break;
-                        stitch.below.push({ id: belowId, dist: STITCH_LENGTHS[stitch.name] + 0.2 });
-                    }
-                }
-                this.stitches.push(stitch);
+                const belowId = this.prev_row.shift();
+                this.stitches.push({
+                    id: this.stitches.length,
+                    name: piece.name,
+                    below: (belowId != undefined && belowId != -1) ? [{ id: belowId, dist: STITCH_LENGTHS[piece.name] }] : [],
+                    prev: { id: this.stitches.length - 1, dist: 1 },
+                });
                 next_row.push(this.stitches.length - 1);
-            } else if (piece.in_name) {
-                let below = this.resolve_in_name(piece.in_name);
-                if (below == undefined) return next_row;
-                for (let i = 0; i < piece.count; i++) {
-                    for (let j = 0; j < piece.pieces.length; j++) {
-                        let sub = piece.pieces[j];
-                        this.stitches.push({
-                            id: this.stitches.length,
-                            name: sub.name || 'sc',
-                            below: [{ id: below, dist: STITCH_LENGTHS[sub.name || 'sc'] }],
-                            prev: { id: this.stitches.length - 1, dist: 1 },
-                        });
-                        next_row.push(this.stitches.length - 1);
-                    }
-                }
-            } else {
-                for (let i = 0; i < piece.count; i++) {
-                    for (let j = 0; j < piece.pieces.length; j++) {
-                        next_row.push(...this.add_crochet(piece.pieces[j]));
-                    }
+            }
+        }
+        else if (piece.pieces) {
+            for (let i = 0; i < piece.count; i++) {
+                for (let j = 0; j < piece.pieces.length; j++) {
+                    next_row.push(...this.add_crochet(piece.pieces[j]));
                 }
             }
-        } else if (piece.name) {
-            if (piece.together) {
-                // Decrease: one stitch, multiple below
-                let stitch = { name: piece.name, id: this.stitches.length, below: [] } as SimStitch;
-                stitch.prev = { id: this.stitches.length - 1, dist: 1 };
-                for (let i = 0; i < piece.count; i++) {
-                    const belowId = this.prev_row.shift();
-                    if (belowId == undefined || belowId == -1) break;
-                    stitch.below.push({ id: belowId, dist: STITCH_LENGTHS[piece.name] + 0.2 });
-                }
-                this.stitches.push(stitch);
-                next_row.push(this.stitches.length - 1);
-                handleMarking(this.stitches.length - 1);
-            } else if (piece.in_name) {
-                let below = this.resolve_in_name(piece.in_name);
-                for (let i = 0; i < piece.count; i++) {
-                    this.stitches.push({
-                        id: this.stitches.length,
-                        name: piece.name,
-                        below: (below == -1 || below == undefined) ? [] : [{ id: below, dist: STITCH_LENGTHS[piece.name] }],
-                        prev: { id: this.stitches.length - 1, dist: 1 },
-                    });
-                    next_row.push(this.stitches.length - 1);
-                    handleMarking(this.stitches.length - 1);
-                }
-            } else {
-                for (let i = 0; i < piece.count; i++) {
-                    const belowId = this.prev_row.shift();
-                    this.stitches.push({
-                        id: this.stitches.length,
-                        name: piece.name,
-                        below: (belowId != undefined && belowId != -1) ? [{ id: belowId, dist: STITCH_LENGTHS[piece.name] }] : [],
-                        prev: { id: this.stitches.length - 1, dist: 1 },
-                    });
-                    next_row.push(this.stitches.length - 1);
-                    handleMarking(this.stitches.length - 1);
-                }
+        }
+        if (piece.together) {
+            while (next_row.length > 1) {
+                this.stitches[next_row[0]].below.push(...this.stitches.pop()!.below);
+                next_row.pop()
             }
+            //next_row = [this.stitches.length - 1];
+        }
+        if (piece.in_name) {
+            this.prev_row = old_prev_row;
+        }
+        if (next_row.length > 0) {
+            this.addMarking(next_row[next_row.length - 1], piece);
         }
         return next_row;
     }
