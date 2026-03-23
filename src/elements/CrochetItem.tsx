@@ -4,7 +4,7 @@ import { relaxStitchPositions, type PhysConfig } from "../simulation/phys";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Html, Line } from "@react-three/drei";
 import { calculateStitchTensions, DensityGridVisualizer, getHeatmapColor } from "../simulation/experimental";
-import { crochet, placeStitchesAnalytically } from "../simulation/crochet";
+import { Crochet } from "../simulation/crochet";
 import { getLabelColors } from "../util";
 
 
@@ -28,10 +28,10 @@ export const CrochetItem: React.FC<CrochetItemProps> = ({
     autoTurn,
 }) => {
     const [stitches, grid] = useMemo(() => {
-        const [stitches, row_ids, is_reversed] = crochet(pattern, { autoJoin, autoTurn });
-        placeStitchesAnalytically(stitches, row_ids, is_reversed, autoJoin);
-        let grid = relaxStitchPositions(stitches, phys);
-        return [stitches, grid] as const;
+        const c = new Crochet(pattern, { autoJoin, autoTurn });
+        c.placeStitchesAnalytically(autoJoin);
+        let grid = relaxStitchPositions(c.stitches, phys);
+        return [c.stitches, grid] as const;
     }, [pattern, phys, autoJoin, autoTurn]);
 
     const tensions = useMemo(() => {

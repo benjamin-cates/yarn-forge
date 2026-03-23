@@ -1,6 +1,12 @@
 import { expect, test } from "vitest";
-import { crochet } from "../simulation/crochet";
-import type { PatternPiece } from "../parse";
+import { Crochet } from "../simulation/crochet";
+import type { PatternPiece, Row } from "../parse";
+
+const crochet = (rounds: PatternPiece[][], options: { autoJoin: boolean, autoTurn: boolean }) => {
+    const rows: Row[] = rounds.map(r => ({ pieces: r }));
+    const c = new Crochet(rows, options);
+    return [c.stitches, c.row_indices, c.is_reversed] as const;
+};
 
 const sc = (count = 1): PatternPiece => ({ name: "sc", count });
 const ch = (count = 1): PatternPiece => ({ name: "ch", count });
