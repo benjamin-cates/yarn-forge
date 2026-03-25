@@ -1,5 +1,4 @@
-import React, { useEffect, useCallback, useState } from "react";
-import { defaultText } from "../App";
+import React, { useCallback } from "react";
 import "../style/editor.css";
 
 
