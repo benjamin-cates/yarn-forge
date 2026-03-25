@@ -71,7 +71,7 @@ body,
 
 .top-nav {
   display: flex;
-  background-color: #1a1a1a;
+  background-color: #111;
   padding: 8px 10px 0 10px;
   z-index: 1000;
   position: relative;
@@ -97,7 +97,7 @@ body,
 
 .top-nav button.active {
   color: #fff;
-  background-color: #222;
+  background-color: #1e1e1e;
   font-weight: 500;
 }
 

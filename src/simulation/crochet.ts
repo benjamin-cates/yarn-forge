@@ -1,4 +1,4 @@
-import type { Location, LocationRange, PatternPiece, Row } from "../parse";
+import { type Pattern, type Location, type LocationRange, type PatternPiece, type Row } from "../parse";
 import { mulberry32 } from "../util";
 import type { SimStitch } from "./phys";
 import * as THREE from "three";
@@ -20,44 +20,55 @@ export class Crochet {
     markings: { [key: string]: number } = {};
     is_reversed: boolean[] = [];
     row_indices: number[] = [];
-    pattern: Row[];
+    pattern: Row[] = [];
 
-    constructor(rows: Row[], options: { autoJoin: boolean, autoTurn: boolean }) {
-        this.pattern = rows;
-        if (rows.length === 0) return;
+    constructor(patterns: Pattern[]) {
+        if (patterns.length === 0) return;
 
-        let current_reversed = false;
+        for (const pattern of patterns) {
+            this.pattern.push(...pattern.rows.map(v => {
+                if (pattern.autoJoin) v.join = true;
+                if (pattern.autoTurn) v.turn = true;
+                return v;
+            }));
+            let current_reversed = false;
+            this.prev_row = Array.from({ length: 1000 }).fill(-1) as number[];
 
-        for (let row of rows) {
-            if (row.pieces.length === 0) continue;
-            this.row_indices.push(this.stitches.length);
-            this.is_reversed.push(current_reversed);
+            for (let row of pattern.rows) {
+                if (row.pieces.length === 0) {
+                    this.row_indices.push(this.stitches.length);
+                    this.is_reversed.push(current_reversed);
+                    continue;
+                }
+                this.row_indices.push(this.stitches.length);
+                this.is_reversed.push(current_reversed);
 
-            let next_row: number[] = [];
-            for (let piece of row.pieces) {
-                next_row.push(...this.add_crochet(piece));
-            }
+                let next_row: number[] = [];
+                for (let piece of row.pieces) {
+                    next_row.push(...this.add_crochet(piece));
+                }
 
-            if (options.autoTurn || row.turn) {
-                this.prev_row = next_row.slice().reverse();
-                current_reversed = !current_reversed;
-            } else {
-                this.prev_row = next_row;
-            }
+                if (pattern.autoTurn || row.turn) {
+                    this.prev_row = next_row.slice().reverse();
+                    current_reversed = !current_reversed;
+                } else {
+                    this.prev_row = next_row;
+                }
 
-            // Add join: connect last stitch to first stitch in this row (standard crochet behavior)
-            if ((options.autoJoin || row.join) && next_row.length > 1) {
-                let firstStitch = this.stitches[next_row[0]];
-                // Only set prev if it doesn't already have a more specific one (like from a join stitch)
-                firstStitch.prev = { id: next_row[next_row.length - 1], dist: 1 };
-            }
-            else {
-                this.stitches[next_row[0]].prev = undefined;
+                // Add join: connect last stitch to first stitch in this row (standard crochet behavior)
+                if ((pattern.autoJoin || row.join) && next_row.length > 1) {
+                    let firstStitch = this.stitches[next_row[0]];
+                    // Only set prev if it doesn't already have a more specific one (like from a join stitch)
+                    firstStitch.prev = { id: next_row[next_row.length - 1], dist: 1 };
+                }
+                else if (next_row.length > 0) {
+                    this.stitches[next_row[0]].prev = undefined;
+                }
             }
         }
     }
 
-    public placeStitchesAnalytically(autoJoin: boolean) {
+    public placeStitchesAnalytically() {
         let random = mulberry32(0);
         let z = 0;
         for (let i = 0; i < this.row_indices.length; i++) {
@@ -69,7 +80,7 @@ export class Crochet {
             let prevCount = i === 0 ? count : this.row_indices[i] - this.row_indices[i - 1];
             let nextZ = z;
 
-            if (autoJoin || this.pattern[i].join) {
+            if (this.pattern[i].join) {
                 if (i > 0) {
                     let dz = Math.abs(count - prevCount) / 6;
                     nextZ = z + Math.max(0, Math.min(1, 1 - dz)) + 0.1;

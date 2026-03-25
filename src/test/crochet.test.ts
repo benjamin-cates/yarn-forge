@@ -1,10 +1,10 @@
 import { expect, test } from "vitest";
 import { Crochet } from "../simulation/crochet";
-import { parseRows, type PatternPiece, type Row } from "../parse";
+import { parseRows, type PatternPiece, type Pattern } from "../parse";
 
 const crochet = (rounds: PatternPiece[][], options: { autoJoin: boolean, autoTurn: boolean }) => {
-    const rows: Row[] = rounds.map(r => ({ pieces: r }));
-    const c = new Crochet(rows, options);
+    const patterns: Pattern[] = [{ name: "test", rows: rounds.map(r => ({ pieces: r })), ...options }];
+    const c = new Crochet(patterns);
     return [c.stitches, c.row_indices, c.is_reversed] as const;
 };
 
@@ -185,7 +185,7 @@ test("robustness: empty rounds", () => {
 test("robustness: empty round within rounds", () => {
     const rounds: PatternPiece[][] = [[ch(2)], [], [sc(2)]];
     const [stitches, row_indices, _is_reversed] = crochet(rounds, { autoJoin: false, autoTurn: false });
-    expect(row_indices.length).toBe(2); // The empty round is skipped in row_indices
+    expect(row_indices.length).toBe(3);
     expect(stitches.length).toBe(4);
 });
 
@@ -243,8 +243,8 @@ test("integrity: id field matches index", () => {
 });
 
 test("crochet from string: 3sc\\n(sc, (sc, sc)) together", () => {
-    const { rows } = parseRows("3sc\n(sc, (sc, sc)) together");
-    const [stitches, row_indices] = crochet(rows.map(r => r.pieces), { autoJoin: false, autoTurn: false });
+    const { pattern } = parseRows("3sc\n(sc, (sc, sc)) together", { name: "test", autoJoin: false, autoTurn: false });
+    const [stitches, row_indices] = crochet(pattern.rows.map(r => r.pieces), { autoJoin: false, autoTurn: false });
 
     expect(stitches.length).toBe(4);
     expect(row_indices).toEqual([0, 3]);
@@ -257,8 +257,8 @@ test("crochet from string: 3sc\\n(sc, (sc, sc)) together", () => {
 });
 
 test("crochet from string: sc, sc#red, 3sc\\n2sc in red:red+1", () => {
-    const { rows } = parseRows("sc, sc#red, 3sc\n2sc in red:red+1");
-    const [stitches] = crochet(rows.map(r => r.pieces), { autoJoin: false, autoTurn: false });
+    const { pattern } = parseRows("sc, sc#red, 3sc\n2sc in red:red+1", { name: "test", autoJoin: false, autoTurn: false });
+    const [stitches] = crochet(pattern.rows.map(r => r.pieces), { autoJoin: false, autoTurn: false });
 
     expect(stitches[1].marking).toBe("red");
 
@@ -270,8 +270,8 @@ test("crochet from string: sc, sc#red, 3sc\\n2sc in red:red+1", () => {
 });
 
 test("crochet complex together and in", () => {
-    const { rows } = parseRows("5sc\n(2sc in next, sc) together");
-    const [stitches] = crochet(rows.map(r => r.pieces), { autoJoin: false, autoTurn: false });
+    const { pattern } = parseRows("5sc\n(2sc in next, sc) together", { name: "test", autoJoin: false, autoTurn: false });
+    const [stitches] = crochet(pattern.rows.map(r => r.pieces), { autoJoin: false, autoTurn: false });
 
     expect(stitches.length).toBe(6); // 5 + 1
     const tog = stitches[5];

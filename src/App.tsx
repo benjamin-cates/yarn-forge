@@ -7,31 +7,11 @@ import About from './elements/About';
 import { CrochetItem } from "./elements/CrochetItem";
 import { PhysicsConfig } from "./elements/PhysicsConfig";
 import { HeatmapIndex } from "./simulation/experimental";
-import { calculateInputStitches, calculateOutputStitches, parseRows, type Row } from "./parse";
+import { parseRows, calculateOutputStitches, type Pattern } from "./parse";
 import type { PhysConfig } from "./simulation/phys";
+import type { Header } from "./elements/PieceEditor";
 
 type Page = 'editor' | 'docs' | 'examples' | 'about';
-
-function getFinalRows(rows: Row[], errors: any[]): Row[] {
-  let currentRowLength = 1000;
-  const result: Row[] = [];
-  for (let i = 0; i < rows.length; i++) {
-    if (errors[i]) {
-      break;
-    }
-    if (rows[i].pieces.length === 0) {
-      result.push({ pieces: [] });
-      continue;
-    }
-    const required = calculateInputStitches(rows[i].pieces);
-    if (required > currentRowLength) {
-      break;
-    }
-    result.push(rows[i]);
-    currentRowLength = calculateOutputStitches(rows[i].pieces);
-  }
-  return result;
-}
 
 export interface PreviewConfig {
   pattern: string;
@@ -83,9 +63,6 @@ function App() {
   const [isResizing, setIsResizing] = useState(false);
 
   // Editor State
-  const [text, setText] = useState(defaultText);
-  const [autoJoin, setAutoJoin] = useState(true);
-  const [autoTurn, setAutoTurn] = useState(false);
   const [sphereColor, setSphereColor] = useState("#ffffff");
   const [lineColor, setLineColor] = useState("#ffff00");
   const [phys, setPhys] = useState<PhysConfig>({
@@ -99,46 +76,49 @@ function App() {
   });
   const [experimental, setExperimental] = useState(false);
   const [hasTextChanges, setHasTextChanges] = useState(false);
+  const [patterns, _setPatterns] = useState([] as Pattern[]);
+  const [texts, setTexts] = useState([defaultText]);
+  const [headers, setHeaders] = useState([{ name: "Piece 1", autoJoin: true, autoTurn: false }] as Header[]);
 
-  // Derived State
-  const { rows, errors, validation } = useMemo(() => {
-    return parseRows(text)
-  }, [text]);
+  const setPatterns = useCallback((patterns: React.SetStateAction<Pattern[]>) => {
+    _setPatterns(patterns);
+    setHasTextChanges(true);
+  }, []);
 
   const totalStitches = useMemo(() => {
-    return validation.reduce((acc, v) => acc + (v?.outputStitches ?? 0), 0);
-  }, [validation]);
-
-  const finalRows = useMemo(() => getFinalRows(rows, errors), [rows, errors]);
+    return patterns.reduce((acc, pattern) => {
+      return acc + pattern.rows.reduce((rowAcc, row) => rowAcc + calculateOutputStitches(row.pieces), 0);
+    }, 0);
+  }, [patterns]);
 
   const needsManualRender = totalStitches > 280;
-  const [lastRenderedPattern, setLastRenderedPattern] = useState<Row[]>(finalRows);
+  const [lastRenderedPatterns, setLastRenderedPatterns] = useState<Pattern[]>(patterns);
   const [lastRenderedPhys, setLastRenderedPhys] = useState<PhysConfig>(phys);
 
   useEffect(() => {
     if (!needsManualRender) {
-      setLastRenderedPattern(prev => (JSON.stringify(prev) === JSON.stringify(finalRows) ? prev : finalRows));
+      setLastRenderedPatterns(prev => (JSON.stringify(prev) === JSON.stringify(patterns) ? prev : patterns));
       setLastRenderedPhys(prev => (JSON.stringify(prev) === JSON.stringify(phys) ? prev : phys));
     }
-  }, [finalRows, phys, needsManualRender]);
+  }, [patterns, phys, needsManualRender]);
 
-  const handleRender = useCallback((patternOverride?: Row[], physOverride?: PhysConfig) => {
-    const pattern = patternOverride ?? finalRows;
+  const handleRender = useCallback((patternsOverride?: Pattern[], physOverride?: PhysConfig) => {
+    const p_list = patternsOverride ?? patterns;
     const p = physOverride ?? phys;
-    setLastRenderedPattern(prev => (JSON.stringify(prev) === JSON.stringify(pattern) ? prev : pattern));
+    setLastRenderedPatterns(prev => (JSON.stringify(prev) === JSON.stringify(p_list) ? prev : p_list));
     setLastRenderedPhys(prev => (JSON.stringify(prev) === JSON.stringify(p) ? prev : p));
     setHasTextChanges(false);
-  }, [finalRows, phys]);
+  }, [patterns, phys]);
 
-  const patternToRender = useMemo(() => {
+  const patternsToRender = useMemo(() => {
     if (activePreview) {
-      const { rows, errors } = parseRows(activePreview.pattern);
+      const { pattern, errors } = parseRows(activePreview.pattern, { name: "Preview", autoTurn: activePreview.autoTurn ?? false, autoJoin: activePreview.autoJoin ?? false });
       if (errors.every((e) => !e)) {
-        return rows;
+        return [pattern];
       }
     }
-    return needsManualRender ? (lastRenderedPattern ?? finalRows) : finalRows;
-  }, [activePreview, needsManualRender, lastRenderedPattern, finalRows]);
+    return needsManualRender ? (lastRenderedPatterns ?? patterns) : patterns;
+  }, [activePreview, needsManualRender, lastRenderedPatterns, patterns]);
 
   const physToRender = needsManualRender ? (lastRenderedPhys ?? phys) : phys;
 
@@ -182,12 +162,6 @@ function App() {
     switch (currentPage) {
       case 'editor':
         return <Editor
-          text={text}
-          setText={(t) => { setText(t); setHasTextChanges(true); }}
-          autoJoin={autoJoin}
-          setAutoJoin={setAutoJoin}
-          autoTurn={autoTurn}
-          setAutoTurn={setAutoTurn}
           sphereColor={sphereColor}
           setSphereColor={setSphereColor}
           lineColor={lineColor}
@@ -196,8 +170,12 @@ function App() {
           hasChanges={hasChanges}
           handleRender={() => handleRender()}
           needsManualRender={needsManualRender}
-          validation={validation}
-          errors={errors}
+          patterns={patterns}
+          setPatterns={setPatterns}
+          texts={texts}
+          setTexts={setTexts}
+          headers={headers}
+          setHeaders={setHeaders}
         />;
       case 'docs':
         return (
@@ -208,11 +186,10 @@ function App() {
         );
       case 'examples':
         return <Examples onTransfer={(p) => {
-          const { rows, errors } = parseRows(p);
-          const fr = getFinalRows(rows, errors);
-          setText(p);
+          setTexts([p]);
+          setHeaders([{ name: "Piece 1", autoJoin: true, autoTurn: false }]);
+          setPatterns([parseRows(p, { autoJoin: true, autoTurn: false, name: "Piece 1" }).pattern]);
           setCurrentPage('editor');
-          handleRender(fr, phys);
         }} />;
       case 'about':
         return <About />;
@@ -268,13 +245,11 @@ function App() {
         <div style={{ width: `calc(100vw - ${sidebarWidth}px)`, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", position: 'relative', zIndex: 0 }}>
           <ErrorBoundary set={() => (<div>Something went wrong</div>)}>
             <CrochetItem
-              pattern={patternToRender}
+              patterns={patternsToRender}
               phys={physToRender}
               sphereColor={sphereColor}
               lineColor={lineColor}
               experimental={experimental}
-              autoJoin={activePreview ? (activePreview.autoJoin ?? false) : autoJoin}
-              autoTurn={activePreview ? (activePreview.autoTurn ?? false) : autoTurn}
             />
           </ErrorBoundary>
           <PhysicsConfig

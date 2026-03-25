@@ -1,4 +1,5 @@
 import * as P from "parsimmon";
+import type { Header } from "./elements/PieceEditor";
 
 export const STITCH_LIST = ["sc", "hdc", "dc", "htc", "tc", "ch", "sk"];
 
@@ -19,12 +20,17 @@ export const ALIAS_MAP: Record<string, PatternPiece[]> = {
 // Special marks: "next" always points to the next stitch to be worked in. "xth from hook" means the stitch going back x positions.
 // In: sc in red --> Makes a stitch in that marker, continues after. Use "2sc in next" to make an increase
 // Together: 2sc together --> Means all stitches are combined into one. Use "sc2together" to make a simple decrease
-// Join: join red --> Immediately connects to that stitch, continues from the stitches after
 // Marks can also be referenced like "red+1" for the stitch after red
 // Example ring: ch#start, 15 ch, join start
 
 
 
+export interface Pattern {
+    name: string,
+    rows: Row[],
+    autoJoin: boolean,
+    autoTurn: boolean,
+}
 
 export interface RowValidation {
     inputStitches: number;
@@ -193,27 +199,39 @@ export function make_parser() {
     })
 }
 
-export function parseRows(text: string): { rows: Row[], errors: boolean[], validation: RowValidation[] } {
+export function parseRows(text: string, options: Header): {
+    pattern: Pattern,
+    errors: boolean[],
+    validation: RowValidation[],
+} {
     const parser = make_parser();
     const lines = text.split("\n");
     const errors: boolean[] = [];
-    const rows = lines
-        .map(line => line.trim())
-        .map((line, i) => {
-            if (line.length === 0) {
-                errors[i] = false;
-                return { pieces: [] };
-            }
-            try {
-                // Each line is a row: parse as ItemList
-                const res = parser.Row.tryParse(line);
-                errors[i] = false;
-                return res;
-            } catch (e) {
-                errors[i] = true;
-                return { pieces: [] };
-            }
-        });
+
+    let pattern: Pattern = { rows: [], ...options };
+
+    const rows = lines.map((line, i) => {
+        const trimmed = line.trim();
+
+        if (trimmed.length === 0) {
+            errors[i] = false;
+            const row = { pieces: [] };
+            pattern.rows.push(row);
+            return row;
+        }
+
+        try {
+            const res = parser.Row.tryParse(trimmed);
+            errors[i] = false;
+            pattern.rows.push(res);
+            return res;
+        } catch (e) {
+            errors[i] = true;
+            const row = { pieces: [] };
+            pattern.rows.push(row);
+            return row;
+        }
+    });
 
     const validation: RowValidation[] = rows.map((row, i) => {
         const inputStitches = calculateInputStitches(row.pieces);
@@ -221,26 +239,15 @@ export function parseRows(text: string): { rows: Row[], errors: boolean[], valid
         let isValid = true;
         let expectedInput: number | undefined = undefined;
 
-        // If row contains 'turn', it's always valid in terms of input count (it doesn't consume)
-        // Actually, turn should be treated like ch/join in terms of input/output count
-        if (i > 0) {
-            // Find the last non-empty row to get expected input
-            for (let j = i - 1; j >= 0; j--) {
-                if (rows[j].pieces.length > 0 && !errors[j]) {
-                    expectedInput = calculateOutputStitches(rows[j].pieces);
-                    break;
-                }
-            }
-
-            if (expectedInput !== undefined && row.pieces.length > 0 && !errors[i]) {
-                isValid = inputStitches === expectedInput;
-            }
+        if (expectedInput !== undefined && row.pieces.length > 0 && !errors[i]) {
+            isValid = inputStitches === expectedInput;
         }
+        // TODO: Fix!
 
         return { inputStitches, outputStitches, isValid, expectedInput };
     });
 
-    return { rows, errors, validation };
+    return { pattern, errors, validation };
 }
 
 export function calculateInputStitches(pieces: PatternPiece[]): number {

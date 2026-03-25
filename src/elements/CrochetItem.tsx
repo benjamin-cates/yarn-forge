@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { type Row } from "../parse";
+import { type Pattern } from "../parse";
 import { relaxStitchPositions, type PhysConfig } from "../simulation/phys";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Html, Line } from "@react-three/drei";
@@ -9,30 +9,26 @@ import { getLabelColors } from "../util";
 
 
 interface CrochetItemProps {
-    pattern: Row[],
+    patterns: Pattern[],
     phys: PhysConfig,
     sphereColor?: string,
     lineColor?: string,
     experimental?: boolean,
-    autoJoin: boolean,
-    autoTurn: boolean,
 }
 
 export const CrochetItem: React.FC<CrochetItemProps> = ({
-    pattern,
+    patterns,
     phys,
     sphereColor,
     lineColor,
     experimental,
-    autoJoin,
-    autoTurn,
 }) => {
     const [stitches, grid] = useMemo(() => {
-        const c = new Crochet(pattern, { autoJoin, autoTurn });
-        c.placeStitchesAnalytically(autoJoin);
+        const c = new Crochet(patterns);
+        c.placeStitchesAnalytically();
         let grid = relaxStitchPositions(c.stitches, phys);
         return [c.stitches, grid] as const;
-    }, [pattern, phys, autoJoin, autoTurn]);
+    }, [patterns, phys]);
 
     const tensions = useMemo(() => {
         return calculateStitchTensions(stitches);

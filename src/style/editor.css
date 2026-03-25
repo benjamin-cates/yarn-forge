@@ -2,9 +2,10 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #222;
+  background: #1e1e1e;
   color: #fff;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .editor-top-panel {
@@ -17,6 +18,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-panel {
+  display: flex;
+}
+
+.editor-piece {
+  margin-bottom: 1rem;
 }
 
 .editor-title {
@@ -58,18 +67,20 @@
   padding: 16px;
   padding-top: 0;
   box-sizing: border-box;
-  background: #222;
   color: #fff;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
   position: relative;
+  padding-bottom: 32px;
 }
 
 .editor-relative-wrapper {
   position: relative;
   flex: 1;
   min-height: 0;
+}
+
+.editor-overlay,
+.editor-textarea {
+  padding: 4px 8px 4px 36px;
 }
 
 .editor-overlay {
@@ -83,7 +94,6 @@
   font-family: monospace;
   font-size: 16px;
   line-height: 1.4em;
-  padding: 8px 8px 8px 48px;
   color: #fff;
   border: 1px solid transparent;
   z-index: 100;
@@ -94,7 +104,7 @@
   min-height: 1.4em;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   position: relative;
   white-space: pre-wrap;
 }
@@ -143,23 +153,23 @@
 
 .editor-stitch-count {
   font-size: 12px;
-  color: #888;
+  color: #aaa;
   margin-left: 10px;
   flex-shrink: 0;
+  font-weight: 500;
 }
 
 .editor-textarea {
   width: 100%;
   height: 100%;
-  background: #111;
+  background: #000;
   color: transparent;
   caret-color: #fff;
   font-family: monospace;
   font-size: 16px;
   line-height: 1.4em;
-  border: 1px solid #444;
-  border-radius: 4px;
-  padding: 8px 8px 8px 48px;
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
   box-sizing: border-box;
   outline: none;
   overflow-y: auto;
@@ -199,4 +209,100 @@
 
 .render-button:not(.has-changes) {
   background-color: #555;
+}
+
+.add-piece-button {
+  background: #333;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  transition: background 0.2s;
+}
+
+.add-piece-button:hover {
+  background: #444;
+}
+
+.add-piece-button::after {
+  content: "Add new piece";
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.add-piece-button:hover::after {
+  opacity: 1;
+}
+
+.piece-editor-panel {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+  background: #333;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.piece-name-input {
+  background: #333;
+  outline: none;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 0;
+  border-top-left-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: bold;
+  flex: 1;
+  min-width: 0;
+}
+
+.piece-toggle-button:nth-child(3) {
+  border-top-right-radius: 4px;
+}
+
+.piece-toggle-button {
+  background: #333;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 0;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.piece-toggle-button:hover {
+  background: #444;
+  color: #fff;
+}
+
+.piece-toggle-button.active {
+  background: #2e7d32;
+  color: #fff;
+  border-color: #1b5e20;
+}
+
+.piece-toggle-button.active:hover {
+  background: #388e3c;
 }
