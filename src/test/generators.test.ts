@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCirclePattern, generateSpherePattern } from '../simulation/generators';
+import { generateCirclePattern, generateSpherePattern, generateConePattern } from '../simulation/generators';
 import { parseRows, calculateOutputStitches, calculateInputStitches } from '../parse';
 import type { Header } from '../elements/PieceEditor';
 
@@ -77,5 +77,51 @@ describe('generateSpherePattern', () => {
 
     it('should return an error for too many rows', () => {
         expect(generateSpherePattern(101)).toContain('Error');
+    });
+});
+
+describe('generateConePattern', () => {
+    it('should generate a pattern where each row matches the previous row\'s output', () => {
+        const radius = 10;
+        const angle = 30;
+        const pattern = generateConePattern(radius, angle, "sc");
+        const { pattern: { rows }, validation } = parseRows(pattern, default_options);
+
+        for (let i = 1; i < rows.length; i++) {
+            const currentInput = calculateInputStitches(rows[i].pieces);
+            const prevOutput = calculateOutputStitches(rows[i - 1].pieces);
+
+            expect(currentInput).toBe(prevOutput);
+            expect(validation[i].isValid).toBe(true);
+        }
+    });
+
+    it('should work for different stitch types', () => {
+        const stitchTypes: ("sc" | "hdc" | "dc" | "tc")[] = ["sc", "hdc", "dc", "tc"];
+        for (const stitchType of stitchTypes) {
+            const pattern = generateConePattern(5, 45, stitchType);
+            const { pattern: { rows }, validation } = parseRows(pattern, default_options);
+
+            for (let i = 1; i < rows.length; i++) {
+                const currentInput = calculateInputStitches(rows[i].pieces);
+                const prevOutput = calculateOutputStitches(rows[i - 1].pieces);
+                expect(currentInput).toBe(prevOutput);
+                expect(validation[i].isValid).toBe(true);
+            }
+        }
+    });
+
+    it('should return an error for non-positive radius', () => {
+        expect(generateConePattern(0, 45, "sc")).toContain('Error');
+        expect(generateConePattern(-5, 45, "sc")).toContain('Error');
+    });
+
+    it('should return an error for invalid interior angles', () => {
+        expect(generateConePattern(10, 4, "sc")).toContain('Error');
+        expect(generateConePattern(10, 91, "sc")).toContain('Error');
+    });
+
+    it('should return an error for too large radius', () => {
+        expect(generateConePattern(101, 45, "sc")).toContain('Error');
     });
 });

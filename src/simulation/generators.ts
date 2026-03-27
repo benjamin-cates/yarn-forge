@@ -139,10 +139,10 @@ export const generateConePattern = (radius: number, interior_angle: number, stit
     const inc = stitch_type === "sc" ? "inc" : `(2 ${stitch_type} in next)`;
 
     let pattern = "";
-    let prevStitches = 0;
+    let prevStitches = Math.round(circumference_over_radius);
 
     for (let i = 1; i <= radius; i++) {
-        const currentStitches = Math.max(1, Math.round(i * circumference_over_radius));
+        const currentStitches = Math.max(1, Math.min(2 * prevStitches, Math.round(i * circumference_over_radius)));
 
         if (i === 1) {
             pattern += `${currentStitches}${stitch_type}\n`;
