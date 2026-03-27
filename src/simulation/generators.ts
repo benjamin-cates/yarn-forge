@@ -27,10 +27,38 @@ const compressPattern = (parts: string[]) => {
     return parts.join(", ");
 };
 
-const rotateArray = (arr: string[], offset: number) => {
+const rotateArray = <T>(arr: T[], offset: number) => {
     if (arr.length === 0) return arr;
-    const o = offset % arr.length;
+    const o = ((offset % arr.length) + arr.length) % arr.length;
     return [...arr.slice(o), ...arr.slice(0, o)];
+};
+
+const combineStitches = (stitches: string[]) => {
+    if (stitches.length === 0) return [];
+    const combined: string[] = [];
+    let currentStitch = stitches[0];
+    let count = 1;
+
+    for (let i = 1; i <= stitches.length; i++) {
+        if (i < stitches.length && stitches[i] === currentStitch) {
+            count++;
+        } else {
+            if (currentStitch === "sc") {
+                combined.push(count === 1 ? "sc" : `${count}sc`);
+            } else {
+                if (count === 1) {
+                    combined.push(currentStitch);
+                } else {
+                    combined.push(`${count}${currentStitch}`);
+                }
+            }
+            if (i < stitches.length) {
+                currentStitch = stitches[i];
+                count = 1;
+            }
+        }
+    }
+    return combined;
 };
 
 export const generateSpherePattern = (numRows: number): string => {
@@ -56,45 +84,35 @@ export const generateSpherePattern = (numRows: number): string => {
                 pattern += `${currentStitches}sc\n`;
             } else if (diff > 0) {
                 // Spread 'diff' increases across 'prevStitches' base stitches
-                let rowParts = [];
-                let accumulated = 0;
+                let stitches = [];
                 for (let j = 0; j < diff; j++) {
                     const count = Math.floor((j + 1) * prevStitches / diff) - Math.floor(j * prevStitches / diff);
-                    if (count > 1) {
-                        rowParts.push(`${count - 1}sc`);
+                    for (let k = 0; k < count - 1; k++) {
+                        stitches.push("sc");
                     }
-                    rowParts.push("inc");
-                    accumulated += count;
-                }
-                if (accumulated < prevStitches) {
-                    rowParts.push(`${prevStitches - accumulated}sc`);
+                    stitches.push("inc");
                 }
 
-                // Randomize offset to prevent stacking
-                const offset = Math.floor(Math.random() * rowParts.length);
-                const rotated = rotateArray(rowParts, offset);
-                pattern += compressPattern(rotated) + "\n";
+                const offset = Math.floor(i * 13);
+                const rotated = rotateArray(stitches, offset);
+                const combined = combineStitches(rotated);
+                pattern += compressPattern(combined) + "\n";
             } else {
                 // Spread 'abs(diff)' decreases across 'prevStitches' base stitches
                 const numDec = Math.abs(diff);
-                let rowParts = [];
-                let accumulated = 0;
+                let stitches = [];
                 for (let j = 0; j < numDec; j++) {
                     const count = Math.floor((j + 1) * prevStitches / numDec) - Math.floor(j * prevStitches / numDec);
-                    if (count > 2) {
-                        rowParts.push(`${count - 2}sc`);
+                    for (let k = 0; k < count - 2; k++) {
+                        stitches.push("sc");
                     }
-                    rowParts.push("dec");
-                    accumulated += count;
-                }
-                if (accumulated < prevStitches) {
-                    rowParts.push(`${prevStitches - accumulated}sc`);
+                    stitches.push("dec");
                 }
 
-                // Randomize offset to prevent stacking
-                const offset = Math.floor(Math.random() * rowParts.length);
-                const rotated = rotateArray(rowParts, offset);
-                pattern += compressPattern(rotated) + "\n";
+                const offset = Math.floor(i * 17);
+                const rotated = rotateArray(stitches, offset);
+                const combined = combineStitches(rotated);
+                pattern += compressPattern(combined) + "\n";
             }
         }
         prevStitches = currentStitches;
@@ -102,6 +120,7 @@ export const generateSpherePattern = (numRows: number): string => {
 
     return pattern.trim();
 };
+
 export const generateCirclePattern = (radius: number, mr_size: number, stitch_type: "sc" | "hdc" | "dc" | "tc"): string => {
     if (radius > 100) {
         return "Error: Maximum radius is 100 (performance limit).";
@@ -122,7 +141,7 @@ export const generateCirclePattern = (radius: number, mr_size: number, stitch_ty
         output += "\n" + mr_size + "x(" + (r - 1) + " " + stitch_type + ", " + inc + ")";
     }
     return output;
-}
+};
 
 export const generateConePattern = (radius: number, interior_angle: number, stitch_type: "sc" | "hdc" | "dc" | "tc"): string => {
     if (radius > 100) {
