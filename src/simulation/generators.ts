@@ -123,3 +123,53 @@ export const generateCirclePattern = (radius: number, mr_size: number, stitch_ty
     }
     return output;
 }
+
+export const generateConePattern = (radius: number, interior_angle: number, stitch_type: "sc" | "hdc" | "dc" | "tc"): string => {
+    if (radius > 100) {
+        return "Error: Maximum radius is 100 (performance limit).";
+    }
+    if (interior_angle > 90 || interior_angle <= 5) {
+        return "Error: Interior angle must be between 5 and 90 degrees";
+    }
+    if (radius <= 0) {
+        return "Error: Please enter positive values.";
+    }
+
+    const circumference_over_radius = 2 * Math.PI * Math.sin(interior_angle * (Math.PI / 180));
+    const inc = stitch_type === "sc" ? "inc" : `(2 ${stitch_type} in next)`;
+
+    let pattern = "";
+    let prevStitches = 0;
+
+    for (let i = 1; i <= radius; i++) {
+        const currentStitches = Math.max(1, Math.round(i * circumference_over_radius));
+
+        if (i === 1) {
+            pattern += `${currentStitches}${stitch_type}\n`;
+        } else {
+            const diff = currentStitches - prevStitches;
+            if (diff === 0) {
+                pattern += `${currentStitches}${stitch_type}\n`;
+            } else if (diff > 0) {
+                let rowParts = [];
+                let accumulated = 0;
+                for (let j = 0; j < diff; j++) {
+                    const count = Math.floor((j + 1) * prevStitches / diff) - Math.floor(j * prevStitches / diff);
+                    if (count > 1) {
+                        rowParts.push(`${count - 1}${stitch_type}`);
+                    }
+                    rowParts.push(inc);
+                    accumulated += count;
+                }
+                if (accumulated < prevStitches) {
+                    rowParts.push(`${prevStitches - accumulated}${stitch_type}`);
+                }
+
+                pattern += compressPattern(rowParts) + "\n";
+            }
+        }
+        prevStitches = currentStitches;
+    }
+
+    return pattern.trim();
+};

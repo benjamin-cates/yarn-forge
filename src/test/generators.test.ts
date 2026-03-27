@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { generateCirclePattern, generateSpherePattern } from '../simulation/generators';
 import { parseRows, calculateOutputStitches, calculateInputStitches } from '../parse';
+import type { Header } from '../elements/PieceEditor';
+
+const default_options: Header = { autoJoin: true, autoTurn: false, name: "generated thing" };
 
 describe("generateCirclePattern", () => {
     it("should generate simple circles", () => {
@@ -15,7 +18,7 @@ describe("generateCirclePattern", () => {
     it("should generate a consistent pattern", () => {
         const numRows = 10;
         const pattern = generateCirclePattern(numRows, 7, "hdc");
-        const { rows, validation } = parseRows(pattern);
+        const { pattern: { rows }, validation } = parseRows(pattern, default_options);
 
         for (let i = 1; i < rows.length; i++) {
             const currentInput = calculateInputStitches(rows[i].pieces);
@@ -40,8 +43,7 @@ describe('generateSpherePattern', () => {
     it('should generate a pattern where each row matches the previous row\'s output', () => {
         const numRows = 10;
         const pattern = generateSpherePattern(numRows);
-        const { rows, validation } = parseRows(pattern);
-
+        const { pattern: { rows }, validation } = parseRows(pattern, default_options);
         // First row (the ring) is special, it doesn't have a previous row to match against
         // But subsequent rows should have their input stitches equal to the previous row's output stitches
         for (let i = 1; i < rows.length; i++) {
@@ -57,7 +59,7 @@ describe('generateSpherePattern', () => {
         const rowCounts = [5, 15, 20];
         for (const numRows of rowCounts) {
             const pattern = generateSpherePattern(numRows);
-            const { rows, validation } = parseRows(pattern);
+            const { pattern: { rows }, validation } = parseRows(pattern, default_options);
 
             for (let i = 1; i < rows.length; i++) {
                 const currentInput = calculateInputStitches(rows[i].pieces);

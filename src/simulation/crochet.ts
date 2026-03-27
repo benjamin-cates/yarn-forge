@@ -88,7 +88,7 @@ export class Crochet {
                 // Circular placement
                 let radius = count / (2 * Math.PI);
                 for (let j = start; j < end; j++) {
-                    let ang = (2 * Math.PI * (j - start)) / count;
+                    let ang = (2 * Math.PI * (j - start)) / count * (this.is_reversed[i] ? -1 : 1);
                     this.stitches[j].position = new THREE.Vector3(
                         radius * Math.sin(ang) + 0.1 * random(),
                         nextZ + 0.1 * random(),
