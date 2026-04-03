@@ -35,8 +35,8 @@ export const CrochetItem: React.FC<CrochetItemProps> = ({
     }, [stitches]);
 
     return (
-        <Canvas frameloop="demand">
-            <OrbitControls></OrbitControls>
+        <Canvas frameloop="demand" camera={{ position: [10, 6, 8] }}>
+            <OrbitControls target={[0, 0, 0]}></OrbitControls>
             {/* Draw lines between connected stitches */}
             {stitches.map((stitch, id) => (
                 stitch.below.map(({ id: belowId }) => {
